@@ -74,6 +74,9 @@
     font: 12px/1.55 system-ui, -apple-system, "Segoe UI", sans-serif; color: rgba(226,233,245,0.86);
     pointer-events: none; opacity: 0; transition: opacity .16s; }
   #tip.on { opacity: 1; }
+  #tip.pin.on { pointer-events: auto; padding-right: 40px; }
+  #tip.pin::after { content: "✕"; position: absolute; top: 8px; right: 8px; width: 24px; height: 24px; line-height: 24px;
+    text-align: center; font: 11px/24px var(--mono); color: #fff; border: 1px solid rgba(255,255,255,0.25); border-radius: 50%; }
   #tip h4 { font: 500 10px/1.4 var(--mono); letter-spacing: 0.2em; text-transform: uppercase; color: #fff; margin-bottom: 7px;
     display: flex; gap: 8px; align-items: center; }
   #tip h4 i, #about li i { flex: none; width: 9px; height: 9px; border-radius: 2px; }
@@ -755,7 +758,7 @@ function applyTrade(t) {
    ===================================================================== */
 const TXT = {
   en: {
-    what: 'What is this', hintTouch: 'tap anything for an explanation · drag to stir', palNote: '<p>Click or press P for the next palette.</p>', hint: 'rest the pointer on anything for an explanation · drag to stir · ? about · H hide',
+    what: 'What is this', hintTouch: 'tap anything for an explanation · tap again to close · drag to stir', palNote: '<p>Click or press P for the next palette.</p>', hint: 'rest the pointer on anything for an explanation · drag to stir · ? about · H hide',
     tips: {
       title: ['Liquidity Collider', 'The live Coinbase BTC-USD order book drawn as two fluids. Each side is grouped into 64 price tiers, each one basis point (0.01%) wide, counted outward from the mid price.'],
       mid: ['Mid price', 'Halfway between the best bid and the best ask. Every tier on screen is measured from this price, so the whole picture re-centres as it moves.'],
@@ -800,7 +803,7 @@ const TXT = {
     }
   },
   hu: {
-    what: 'Mi ez', hintTouch: 'koppints bármire a magyarázatért · húzással kavarhatsz', palNote: '<p>Kattints vagy nyomd meg a P-t a következő palettához.</p>', hint: 'állítsd meg az egeret bármin a magyarázatért · húzással kavarhatsz · ? leírás · H elrejt',
+    what: 'Mi ez', hintTouch: 'koppints bármire a magyarázatért · újabb koppintás bezárja · húzással kavarhatsz', palNote: '<p>Kattints vagy nyomd meg a P-t a következő palettához.</p>', hint: 'állítsd meg az egeret bármin a magyarázatért · húzással kavarhatsz · ? leírás · H elrejt',
     tips: {
       title: ['Liquidity Collider', 'A Coinbase BTC-USD élő ajánlati könyve két folyadékként. Mindkét oldal 64 ársávra van bontva; egy sáv egy bázispont (0,01%) széles, a középártól kifelé számolva.'],
       mid: ['Középár (mid)', 'A legjobb vételi és a legjobb eladási ár átlaga. A képernyőn minden sáv ehhez az árhoz képest értendő, ezért az egész kép vele együtt mozog.'],
@@ -849,6 +852,7 @@ let lang = 'en';
 try { lang = localStorage.getItem('lc-lang') || ((navigator.language || 'en').toLowerCase().startsWith('hu') ? 'hu' : 'en'); } catch (e) {}
 if (params.get('lang')) lang = params.get('lang') === 'hu' ? 'hu' : 'en';
 const L = () => TXT[lang];
+const CAN_HOVER = !(window.matchMedia && matchMedia('(hover: none)').matches);   // phones: explanations open on tap only
 const COARSE = !!(window.matchMedia && matchMedia('(pointer: coarse)').matches);
 
 const tipEl = document.getElementById('tip'), aboutEl = document.getElementById('about'), aboutCard = document.getElementById('aboutcard');
@@ -865,17 +869,21 @@ function placeTip(x, y, anchor) {
   }
   tipEl.style.transform = 'translate(' + Math.round(clamp(x, m, innerWidth - w - m)) + 'px,' + Math.round(clamp(y, m, innerHeight - h - m)) + 'px)';
 }
-function hideTip() { tipMode = null; tipAt = null; tipEl.classList.remove('on'); }
+function hideTip() { tipMode = null; tipAt = null; hover = null; tipEl.classList.remove('on', 'pin'); }
 let lastPointer = 'mouse';
-document.addEventListener('pointerdown', (e) => { lastPointer = e.pointerType; }, true);
+let tipOpenAtDown = false;
+document.addEventListener('pointerdown', (e) => { lastPointer = e.pointerType; tipOpenAtDown = tipMode !== null; }, true);
+tipEl.addEventListener('click', (e) => { e.stopPropagation(); hideTip(); });
 function showElTip(t) {
   const d = t.dataset.tip === 'palette' ? [PALETTES[palIdx].name, PALETTES[palIdx][lang] + L().palNote] : L().tips[t.dataset.tip]; if (!d) return;
   tipMode = 'el'; tipAt = null; tipHtml = ''; hover = null; tipEl.innerHTML = '<h4>' + d[0] + '</h4>' + d[1];
+  tipEl.classList.toggle('pin', lastPointer === 'touch');
   placeTip(0, 0, t.getBoundingClientRect()); tipEl.classList.add('on');
 }
-document.addEventListener('mouseover', (e) => { const t = e.target.closest && e.target.closest('[data-tip]'); if (t) showElTip(t); });
+document.addEventListener('mouseover', (e) => { const t = e.target.closest && e.target.closest('[data-tip]'); if (t && lastPointer !== 'touch') showElTip(t); });
 document.addEventListener('click', (e) => {          // touch screens have no hover: a tap shows the explanation
   const t = e.target.closest && e.target.closest('[data-tip]');
+  if (lastPointer === 'touch' && tipOpenAtDown) { hideTip(); return; }   // a tap while one is open closes it
   if (t && t.tagName !== 'BUTTON') showElTip(t); else if (tipMode === 'el') hideTip();
 });
 document.addEventListener('mouseout', (e) => {
@@ -908,6 +916,7 @@ function inspect() {
   }
   if (html !== tipHtml) { tipHtml = html; tipEl.innerHTML = html; }
   if (!tipAt) { tipAt = { x: hover.x, y: hover.y }; placeTip(hover.x, hover.y, null); }   // placed once, never follows the pointer
+  tipEl.classList.toggle('pin', !!hover.pinned && lastPointer === 'touch');
   tipMode = 'fluid'; tipEl.classList.add('on');
 }
 setInterval(inspect, 200);
@@ -986,13 +995,13 @@ canvas.addEventListener('pointermove', (e) => {
   const x = e.clientX / innerWidth, y = 1 - e.clientY / innerHeight;
   if (ptr) { ptr.dx += x - ptr.x; ptr.dy += y - ptr.y; ptr.x = x; ptr.y = y; ptr.down = e.buttons > 0 || e.pointerType === 'touch'; }
   else ptr = { x, y, dx: 0, dy: 0, down: false };
-  hover = e.buttons > 0 || e.pointerType === 'touch' ? null : { x: e.clientX, y: e.clientY, t: performance.now() };
+  hover = e.buttons > 0 || e.pointerType === 'touch' || !CAN_HOVER ? null : { x: e.clientX, y: e.clientY, t: performance.now() };
   if (tipMode === 'fluid' && (!hover || !tipAt || Math.hypot(hover.x - tipAt.x, hover.y - tipAt.y) > 8)) hideTip();
 });
 let tapStart = null;
-canvas.addEventListener('pointerdown', (e) => { hover = null; inspect(); tapStart = { x: e.clientX, y: e.clientY, t: performance.now() }; });
+canvas.addEventListener('pointerdown', (e) => { const wasOpen = tipMode !== null; hideTip(); tapStart = { x: e.clientX, y: e.clientY, t: performance.now(), closed: wasOpen }; });
 canvas.addEventListener('pointerup', (e) => {       // a short tap pins the inspector at that point
-  if (tapStart && performance.now() - tapStart.t < 400 && Math.hypot(e.clientX - tapStart.x, e.clientY - tapStart.y) < 10) {
+  if (tapStart && !tapStart.closed && performance.now() - tapStart.t < 800 && Math.hypot(e.clientX - tapStart.x, e.clientY - tapStart.y) < 10) {
     hover = { x: e.clientX, y: e.clientY, t: -1e9, pinned: true }; tipAt = null; inspect();
   }
   tapStart = null;
