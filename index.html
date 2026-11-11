@@ -21,7 +21,7 @@
     letter-spacing: 0.14em; text-transform: uppercase; font-variant-numeric: tabular-nums;
     text-shadow: 0 0 12px rgba(0, 0, 0, 0.9), 0 1px 2px rgba(0, 0, 0, 0.9); transition: opacity 0.4s; }
   body.nohud .hud, body.nohud #labels { opacity: 0; }
-  body.nohud [data-tip], body.nohud #what, body.nohud #pal { pointer-events: none; }
+  body.nohud [data-tip], body.nohud #what, body.nohud #pal, body.nohud #mat { pointer-events: none; }
   .k { color: var(--dim); }
   .hud b { font-weight: 500; color: var(--ink); }
   .tl { top: 26px; left: 30px; }
@@ -58,15 +58,15 @@
   .whale small { display: block; font-size: 9px; opacity: 0.7; text-align: center; }
   @keyframes rise { 0% { opacity: 0; margin-top: 0; } 12% { opacity: 1; } 70% { opacity: 1; } 100% { opacity: 0; margin-top: -90px; } }
   [data-tip] { pointer-events: auto; cursor: help; }
-  #what, #pal { pointer-events: auto; cursor: pointer; margin-top: 12px; display: inline-flex; gap: 8px; align-items: center;
+  #what, #pal, #mat { pointer-events: auto; cursor: pointer; margin-top: 12px; display: inline-flex; gap: 8px; align-items: center;
     font: inherit; letter-spacing: 0.2em; text-transform: uppercase; color: var(--ink); background: rgba(255,255,255,0.05);
     border: 1px solid rgba(255,255,255,0.22); border-radius: 999px; padding: 4px 13px 4px 6px; transition: background .2s, border-color .2s; }
-  #pal { display: flex; margin-top: 8px; }
+  #pal, #mat { display: flex; margin-top: 8px; }
   button#pal i { background: linear-gradient(90deg, var(--bid) 50%, var(--ask) 50%); }
   #what.fresh { animation: pulse 2.4s ease-in-out 6s 4; }
   @keyframes pulse { 50% { border-color: rgba(255,255,255,0.85); box-shadow: 0 0 18px rgba(255,255,255,0.28); } }
-  #what:hover, #pal:hover { background: rgba(255,255,255,0.13); border-color: rgba(255,255,255,0.5); }
-  #what i, #pal i { font-style: normal; width: 16px; height: 16px; line-height: 16px; text-align: center; border-radius: 50%;
+  #what:hover, #pal:hover, #mat:hover { background: rgba(255,255,255,0.13); border-color: rgba(255,255,255,0.5); }
+  #what i, #pal i, #mat i { font-style: normal; width: 16px; height: 16px; line-height: 16px; text-align: center; border-radius: 50%;
     background: var(--ink); color: #05070c; font-weight: 700; letter-spacing: 0; }
   #tip { position: fixed; z-index: 12; left: 0; top: 0; width: max-content; max-width: 370px; padding: 13px 15px 14px;
     background: rgba(7, 10, 20, 0.93); border: 1px solid rgba(255,255,255,0.13); border-radius: 8px;
@@ -138,6 +138,7 @@
   <div class="row" data-tip="spread"><span class="k">Spread</span><b id="spr">—</b></div>
   <button id="what"><i>?</i><span id="whatlbl">What is this</span></button>
   <button id="pal" data-tip="palette"><i></i><span id="palname"></span></button>
+  <button id="mat" data-tip="material"><i>≈</i><span id="matname"></span></button>
 </div>
 
 <div class="hud tr">
@@ -469,6 +470,27 @@ vec2 fronts(vec2 uv, vec4 d){
 }
 `;
 
+// Shared by every material's scene shader: palette ramps, shock lensing, backdrop.
+const SCENE = `
+uniform sampler2D uDye; uniform vec2 uTexel; uniform vec4 uShock[6];
+uniform vec3 uBid[4]; uniform vec3 uAsk[4];
+vec3 ramp(vec3 a, vec3 b, vec3 c, vec3 e, float d){ vec3 x = mix(a,b,smoothstep(0.0,0.45,d));
+  x = mix(x,c,smoothstep(0.3,0.75,d)); return mix(x,e,smoothstep(0.75,1.5,d)); }
+vec3 bidRamp(float d){ return ramp(uBid[0],uBid[1],uBid[2],uBid[3],d); }
+vec3 askRamp(float d){ return ramp(uAsk[0],uAsk[1],uAsk[2],uAsk[3],d); }
+vec3 heatCol(float h){ return (vec3(1.0,0.55,0.18) + vec3(0.6,0.9,1.0)*h*h)*h*h; }
+float H(vec4 c){ return c.r+c.g+0.6*c.b; }
+float shockWarp(inout vec2 uv){ float ring = 0.0;
+  for(int i=0;i<6;i++){ vec4 s = uShock[i]; if(s.w<=0.001) continue;
+    vec2 p = vec2((uv.x-s.x)*uAspect, uv.y-s.y); float dist = length(p); float w = 0.004+0.025*s.z;
+    float r = exp(-pow((dist-s.z)/w,2.0))*s.w;
+    uv -= p/(dist+1e-4)*r*0.02*vec2(1.0/uAspect,1.0); ring += r; }
+  return ring; }
+vec3 backdrop(float y){ float t = tierT(y)*64.0;
+  float tick = 1.0-smoothstep(0.0,0.07,abs(fract(t/8.0+0.5)-0.5)*8.0);
+  return vec3(0.006,0.009,0.018) + vec3(0.02,0.03,0.05)*tick*0.5; }
+`;
+
 const FS = {
   copy: HEAD + `uniform sampler2D uTex; uniform float uValue; void main(){ o = uValue*texture(uTex,vUv); }`,
 
@@ -565,22 +587,11 @@ void main(){ vec4 c = texture(uTex,vUv);
   c.b += rim*uHeat + m*uHeat*0.05; c.a = max(c.a,m);
   o = c; }`,
 
-  // Scene: density treated as a height field -> normals -> refraction, dispersion, specular, reflection.
-  composite: HEAD + COMMON + `uniform sampler2D uDye; uniform vec2 uTexel; uniform vec4 uShock[6];
-uniform vec3 uBid[4]; uniform vec3 uAsk[4];
-vec3 ramp(vec3 a, vec3 b, vec3 c, vec3 e, float d){ vec3 x = mix(a,b,smoothstep(0.0,0.45,d));
-  x = mix(x,c,smoothstep(0.3,0.75,d)); return mix(x,e,smoothstep(0.75,1.5,d)); }
-vec3 bidRamp(float d){ return ramp(uBid[0],uBid[1],uBid[2],uBid[3],d); }
-vec3 askRamp(float d){ return ramp(uAsk[0],uAsk[1],uAsk[2],uAsk[3],d); }
-vec3 shade(vec4 c){ return bidRamp(c.r)*(1.0-exp(-1.8*c.r))*0.95 + askRamp(c.g)*(1.0-exp(-1.8*c.g))*0.95
-  + (vec3(1.0,0.55,0.18) + vec3(0.6,0.9,1.0)*c.b*c.b)*c.b*c.b*1.2; }
-float H(vec4 c){ return c.r+c.g+0.6*c.b; }
+  // Scene, water: density treated as a height field -> normals -> refraction, dispersion, specular, reflection.
+  composite: HEAD + COMMON + SCENE + `
+vec3 shade(vec4 c){ return bidRamp(c.r)*(1.0-exp(-1.8*c.r))*0.95 + askRamp(c.g)*(1.0-exp(-1.8*c.g))*0.95 + heatCol(c.b)*1.2; }
 void main(){
-  vec2 uv = vUv; float ring = 0.0;
-  for(int i=0;i<6;i++){ vec4 s = uShock[i]; if(s.w<=0.001) continue;
-    vec2 p = vec2((uv.x-s.x)*uAspect, uv.y-s.y); float dist = length(p); float w = 0.004+0.025*s.z;
-    float r = exp(-pow((dist-s.z)/w,2.0))*s.w;
-    uv -= p/(dist+1e-4)*r*0.02*vec2(1.0/uAspect,1.0); ring += r; }
+  vec2 uv = vUv; float ring = shockWarp(uv);
   vec2 e = uTexel*1.5;
   float hL=H(texture(uDye,uv-vec2(e.x,0))), hR=H(texture(uDye,uv+vec2(e.x,0))),
         hB=H(texture(uDye,uv-vec2(0,e.y))), hT=H(texture(uDye,uv+vec2(0,e.y)));
@@ -598,10 +609,29 @@ void main(){
   col += body*pow(1.0-Nn.z,1.5)*tint*0.9;
   vec3 Rf = reflect(-V,Nn);
   col += body*pow(0.5+0.5*sin(Rf.x*16.0+Rf.y*11.0+uTime*0.15),8.0)*0.18*(tint+0.3);
-  float t = tierT(uv.y+ro.y*4.0)*64.0;
-  float tick = 1.0-smoothstep(0.0,0.07,abs(fract(t/8.0+0.5)-0.5)*8.0);
-  col += (vec3(0.006,0.009,0.018) + vec3(0.02,0.03,0.05)*tick*0.5)*(1.0-body*0.7);
+  col += backdrop(uv.y+ro.y*4.0)*(1.0-body*0.7);
   col += ring*vec3(1.0,0.93,0.85)*0.35;
+  o = vec4(col,1.0);
+}`,
+
+  // Scene, smoke: no surface. Soft density, lit from the upper left so thick parts shade the smoke behind them.
+  composite_smoke: HEAD + COMMON + SCENE + `
+vec4 soft(vec2 uv, float r){ vec2 e = uTexel*r;
+  return (texture(uDye,uv)*2.0 + texture(uDye,uv+vec2(e.x,0)) + texture(uDye,uv-vec2(e.x,0))
+        + texture(uDye,uv+vec2(0,e.y)) + texture(uDye,uv-vec2(0,e.y)))/6.0; }
+void main(){
+  vec2 uv = vUv; float ring = shockWarp(uv);
+  vec4 c = soft(uv, 2.5);
+  vec2 e = uTexel*6.0;
+  float hL=H(soft(uv-vec2(e.x,0),2.5)), hR=H(soft(uv+vec2(e.x,0),2.5)),
+        hB=H(soft(uv-vec2(0,e.y),2.5)), hT=H(soft(uv+vec2(0,e.y),2.5));
+  float lit = clamp(0.58 - dot(vec2(hR-hL,hT-hB), normalize(vec2(-0.6,0.75)))*1.1, 0.0, 1.0);
+  float ab = 1.0-exp(-1.9*c.r), aa = 1.0-exp(-1.9*c.g);
+  vec3 col = ab*mix(uBid[1]*0.45, mix(uBid[2],uBid[3],0.4), lit)
+           + aa*mix(uAsk[1]*0.45, mix(uAsk[2],uAsk[3],0.4), lit);
+  col += heatCol(c.b)*0.7;
+  col += backdrop(uv.y)*(1.0-0.7*max(ab,aa));
+  col += ring*vec3(1.0,0.93,0.85)*0.3;
   o = vec4(col,1.0);
 }`,
 
@@ -758,7 +788,7 @@ function applyTrade(t) {
    ===================================================================== */
 const TXT = {
   en: {
-    what: 'What is this', hintTouch: 'tap anything for an explanation · tap again to close · drag to stir', palNote: '<p>Click or press P for the next palette.</p>', hint: 'rest the pointer on anything for an explanation · drag to stir · ? about · H hide',
+    what: 'What is this', hintTouch: 'tap anything for an explanation · tap again to close · drag to stir', palNote: '<p>Click or press P for the next palette.</p>', matNote: '<p>Click or press F for the next material.</p>', hint: 'rest the pointer on anything for an explanation · drag to stir · ? about · H hide',
     tips: {
       title: ['Liquidity Collider', 'The live Coinbase BTC-USD order book drawn as two fluids. Each side is grouped into 64 price tiers, each one basis point (0.01%) wide, counted outward from the mid price.'],
       mid: ['Mid price', 'Halfway between the best bid and the best ask. Every tier on screen is measured from this price, so the whole picture re-centres as it moves.'],
@@ -797,13 +827,13 @@ const TXT = {
         ['#7c8aff', 'Turbulence', 'The more dollar volume trades per second, the more both fluids churn.']
       ],
       ctl: 'Controls',
-      keys: [['rest pointer', 'explanation of whatever is under it'], ['drag', 'stir the fluid (visual only, the data is unaffected)'], ['?', 'this panel'], ['P', 'next colour palette'], ['I', 'fluid inspector on / off'], ['H', 'hide all text'], ['M', 'live / synthetic'], ['W', 'whale trade (synthetic mode)']],
+      keys: [['rest pointer', 'explanation of whatever is under it'], ['drag', 'stir the fluid (visual only, the data is unaffected)'], ['?', 'this panel'], ['P', 'next colour palette'], ['F', 'next material'], ['I', 'fluid inspector on / off'], ['H', 'hide all text'], ['M', 'live / synthetic'], ['W', 'whale trade (synthetic mode)']],
       foot: 'Data: Coinbase Exchange public WebSocket. If it cannot be reached, a deterministic synthetic order book runs instead, marked in purple at the top right.',
       close: 'Close', lang: 'Magyar'
     }
   },
   hu: {
-    what: 'Mi ez', hintTouch: 'koppints bármire a magyarázatért · újabb koppintás bezárja · húzással kavarhatsz', palNote: '<p>Kattints vagy nyomd meg a P-t a következő palettához.</p>', hint: 'állítsd meg az egeret bármin a magyarázatért · húzással kavarhatsz · ? leírás · H elrejt',
+    what: 'Mi ez', hintTouch: 'koppints bármire a magyarázatért · újabb koppintás bezárja · húzással kavarhatsz', palNote: '<p>Kattints vagy nyomd meg a P-t a következő palettához.</p>', matNote: '<p>Kattints vagy nyomd meg az F-et a következő anyaghoz.</p>', hint: 'állítsd meg az egeret bármin a magyarázatért · húzással kavarhatsz · ? leírás · H elrejt',
     tips: {
       title: ['Liquidity Collider', 'A Coinbase BTC-USD élő ajánlati könyve két folyadékként. Mindkét oldal 64 ársávra van bontva; egy sáv egy bázispont (0,01%) széles, a középártól kifelé számolva.'],
       mid: ['Középár (mid)', 'A legjobb vételi és a legjobb eladási ár átlaga. A képernyőn minden sáv ehhez az árhoz képest értendő, ezért az egész kép vele együtt mozog.'],
@@ -842,12 +872,13 @@ const TXT = {
         ['#7c8aff', 'Örvénylés', 'Minél nagyobb a másodpercenkénti forgalom, annál erősebben kavarog mindkét folyadék.']
       ],
       ctl: 'Kezelés',
-      keys: [['megálló egér', 'magyarázat arról, ami alatta van'], ['húzás', 'a folyadék kavarása (csak látvány, az adatot nem érinti)'], ['?', 'ez a leírás'], ['P', 'következő színpaletta'], ['I', 'folyadék-vizsgáló be / ki'], ['H', 'minden felirat elrejtése'], ['M', 'élő / szintetikus'], ['W', 'bálna-kötés (szintetikus módban)']],
+      keys: [['megálló egér', 'magyarázat arról, ami alatta van'], ['húzás', 'a folyadék kavarása (csak látvány, az adatot nem érinti)'], ['?', 'ez a leírás'], ['P', 'következő színpaletta'], ['F', 'következő anyag'], ['I', 'folyadék-vizsgáló be / ki'], ['H', 'minden felirat elrejtése'], ['M', 'élő / szintetikus'], ['W', 'bálna-kötés (szintetikus módban)']],
       foot: 'Adat: a Coinbase Exchange nyilvános WebSocketje. Ha nem érhető el, determinisztikus szintetikus ajánlati könyv fut helyette; ezt lila jelzés mutatja jobbra fent.',
       close: 'Bezár', lang: 'English'
     }
   }
 };
+let MAT = null;   // current material, set by setMaterial() below
 let lang = 'en';
 try { lang = localStorage.getItem('lc-lang') || ((navigator.language || 'en').toLowerCase().startsWith('hu') ? 'hu' : 'en'); } catch (e) {}
 if (params.get('lang')) lang = params.get('lang') === 'hu' ? 'hu' : 'en';
@@ -875,7 +906,10 @@ let tipOpenAtDown = false;
 document.addEventListener('pointerdown', (e) => { lastPointer = e.pointerType; tipOpenAtDown = tipMode !== null; }, true);
 tipEl.addEventListener('click', (e) => { e.stopPropagation(); hideTip(); });
 function showElTip(t) {
-  const d = t.dataset.tip === 'palette' ? [PALETTES[palIdx].name, PALETTES[palIdx][lang] + L().palNote] : L().tips[t.dataset.tip]; if (!d) return;
+  const k = t.dataset.tip;
+  const d = k === 'palette' ? [PALETTES[palIdx].name, PALETTES[palIdx][lang] + L().palNote]
+    : k === 'material' ? [MAT.name[lang], MAT[lang] + L().matNote] : L().tips[k];
+  if (!d) return;
   tipMode = 'el'; tipAt = null; tipHtml = ''; hover = null; tipEl.innerHTML = '<h4>' + d[0] + '</h4>' + d[1];
   tipEl.classList.toggle('pin', lastPointer === 'touch');
   placeTip(0, 0, t.getBoundingClientRect()); tipEl.classList.add('on');
@@ -934,6 +968,7 @@ function renderAbout() {
 function applyLang() {
   document.getElementById('whatlbl').textContent = L().what;
   document.getElementById('hint').textContent = COARSE ? L().hintTouch : L().hint;
+  if (MAT) document.getElementById('matname').textContent = MAT.name[lang];
   renderAbout();
 }
 function toggleAbout(on) {
@@ -989,6 +1024,29 @@ function setPalette(i) {
 setPalette(palIdx);
 document.getElementById('pal').onclick = () => { setPalette(palIdx + 1); hideTip(); };
 
+/* ---------- materials: same data mapping, different motion and rendering ---------- */
+const MATERIALS = [
+  { id: 'water', name: { en: 'Water', hu: 'Víz' }, prog: 'composite',
+    force: 150, curl: 24, turb: 1, velDiss: 0.2, dyeDiss: 0.1, bloomThr: 0.7, bloom: 0.13,
+    en: 'The baseline: a clear liquid with a glassy surface that bends and reflects light. Medium thickness, medium swirl. Differences in liquidity are easiest to read here.',
+    hu: 'A kiinduló anyag: tiszta folyadék üveges felülettel, amely megtöri és tükrözi a fényt. Közepesen sűrű, közepesen örvénylik. A likviditás különbségei itt olvashatók a legkönnyebben.' },
+  { id: 'smoke', name: { en: 'Smoke', hu: 'Füst' }, prog: 'composite_smoke',
+    force: 150, curl: 44, turb: 1.9, velDiss: 0.12, dyeDiss: 0.5, bloomThr: 0.85, bloom: 0.07,
+    en: 'Very thin and restless: it swirls strongly and disperses quickly, so it stays dense only where liquidity keeps feeding it. Drawn soft and translucent, with no surface. It billows but does not rise, because this picture has no up or down.',
+    hu: 'Nagyon híg és nyugtalan: erősen örvénylik és gyorsan szétoszlik, ezért csak ott marad sűrű, ahol a likviditás folyamatosan táplálja. Puha és áttetsző, felület nélkül. Gomolyog, de nem száll felfelé, mert ezen a képen nincs fent és lent.' }
+];
+let matIdx = 0;
+try { matIdx = +localStorage.getItem('lc-mat') || 0; } catch (e) {}
+if (params.get('mat')) matIdx = Math.max(0, MATERIALS.findIndex((m) => m.id === params.get('mat')));
+function setMaterial(i) {
+  matIdx = ((i % MATERIALS.length) + MATERIALS.length) % MATERIALS.length;
+  MAT = MATERIALS[matIdx];
+  document.getElementById('matname').textContent = MAT.name[lang];
+  try { localStorage.setItem('lc-mat', matIdx); } catch (e) {}
+}
+setMaterial(matIdx);
+document.getElementById('mat').onclick = () => { setMaterial(matIdx + 1); hideTip(); };
+
 /* pointer stirring */
 let ptr = null;
 canvas.addEventListener('pointermove', (e) => {
@@ -1013,6 +1071,7 @@ addEventListener('keydown', (e) => {
   if (k === '?' || k === '/') toggleAbout();
   else if (k === 'escape') toggleAbout(false);
   else if (k === 'p') setPalette(palIdx + (e.shiftKey ? -1 : 1));
+  else if (k === 'f') setMaterial(matIdx + (e.shiftKey ? -1 : 1));
   else if (k === 'i') { inspector = !inspector; inspect(); }
   else if (k === 'h') { document.body.classList.toggle('nohud'); hideTip(); }
   else if (k === 'w') sendCmd({ cmd: 'whale' });
@@ -1071,12 +1130,12 @@ function simulate(dt) {
     draw(vel.write); vel.swap(); ptr.dx = ptr.dy = 0;
   }
 
-  use(P.force); setCommon(); tex('uVel', vel.read, 0); f1('uDt', dt); f1('uForce', 150); f1('uTurb', S.turb);
+  use(P.force); setCommon(); tex('uVel', vel.read, 0); f1('uDt', dt); f1('uForce', MAT.force); f1('uTurb', S.turb * MAT.turb);
   gl.uniform4fv(cur.u.uShock, shockBuf); draw(vel.write); vel.swap();
 
   use(P.curl); tex('uVel', vel.read, 0); f2('uTexel', vel.texel[0], vel.texel[1]); draw(curlT);
   use(P.vorticity); tex('uVel', vel.read, 0); tex('uCurl', curlT, 1); f2('uTexel', vel.texel[0], vel.texel[1]);
-  f1('uDt', dt); f1('uCurlK', 24); draw(vel.write); vel.swap();
+  f1('uDt', dt); f1('uCurlK', MAT.curl); draw(vel.write); vel.swap();
 
   use(P.divergence); tex('uVel', vel.read, 0); f2('uTexel', vel.texel[0], vel.texel[1]); draw(divT);
   use(P.copy); tex('uTex', pres.read, 0); f1('uValue', 0.8); draw(pres.write); pres.swap();
@@ -1086,20 +1145,20 @@ function simulate(dt) {
   draw(vel.write); vel.swap();
 
   use(P.advect); f2('uTexel', vel.texel[0], vel.texel[1]); f1('uDt', dt);
-  tex('uVelocity', vel.read, 0); tex('uSource', vel.read, 0); f1('uDissipation', 0.2); draw(vel.write); vel.swap();
-  tex('uVelocity', vel.read, 0); tex('uSource', dye.read, 1); f1('uDissipation', 0.1); draw(dye.write); dye.swap();
+  tex('uVelocity', vel.read, 0); tex('uSource', vel.read, 0); f1('uDissipation', MAT.velDiss); draw(vel.write); vel.swap();
+  tex('uVelocity', vel.read, 0); tex('uSource', dye.read, 1); f1('uDissipation', MAT.dyeDiss); draw(dye.write); dye.swap();
 
   use(P.dye); setCommon(); tex('uDye', dye.read, 0); f1('uDt', dt); f1('uBoost', bootT < 2 ? 3 : 0);
   draw(dye.write); dye.swap();
 }
 
 function render() {
-  use(P.composite); setCommon(); tex('uDye', dye.read, 0); f2('uTexel', dye.texel[0], dye.texel[1]);
+  use(P[MAT.prog]); setCommon(); tex('uDye', dye.read, 0); f2('uTexel', dye.texel[0], dye.texel[1]);
   gl.uniform4fv(cur.u.uShock, shockBuf);
   gl.uniform3fv(cur.u.uBid, PAL.bid); gl.uniform3fv(cur.u.uAsk, PAL.ask); draw(scene);
 
   if (bloom.length) {
-    use(P.prefilter); tex('uTex', scene, 0); f1('uThreshold', 0.7); draw(bloom[0]);
+    use(P.prefilter); tex('uTex', scene, 0); f1('uThreshold', MAT.bloomThr); draw(bloom[0]);
     use(P.blur);
     for (let i = 1; i < bloom.length; i++) { tex('uTex', bloom[i - 1], 0); f2('uTexel', bloom[i - 1].texel[0], bloom[i - 1].texel[1]); draw(bloom[i]); }
     gl.enable(gl.BLEND); gl.blendFunc(gl.ONE, gl.ONE);
@@ -1107,7 +1166,7 @@ function render() {
     gl.disable(gl.BLEND);
   }
   use(P.final); tex('uScene', scene, 0); tex('uBloom', bloom[0] || scene, 1);
-  f1('uTime', simTime); f1('uCA', 0.012 * S.energy); f1('uBloomI', bloom.length ? 0.13 + 0.1 * S.energy : 0);
+  f1('uTime', simTime); f1('uCA', 0.012 * S.energy); f1('uBloomI', bloom.length ? MAT.bloom + 0.1 * S.energy : 0);
   draw(null);
 }
 
