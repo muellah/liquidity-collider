@@ -546,7 +546,7 @@ void main(){ float L=texture(uP,vUv-vec2(uTexel.x,0)).x, R=texture(uP,vUv+vec2(u
   o = vec4(texture(uVel,vUv).xy - vec2(R-L,T-B),0,1); }`,
 
   // Dye channels: r = bid density, g = ask density, b = heat (annihilation / shock), a = cavity mask.
-  dye: HEAD + COMMON + `uniform sampler2D uDye; uniform float uDt, uBoost;
+  dye: HEAD + COMMON + `uniform sampler2D uDye; uniform float uDt, uBoost, uRelax, uPuff;
 void main(){
   vec4 c = texture(uDye,vUv); float b=c.r, a=c.g, h=c.b, cv=c.a; float x=vUv.x;
   vec4 d = tierData(vUv.y); vec2 f = fronts(vUv,d);
@@ -554,11 +554,14 @@ void main(){
   float inA = smoothstep(f.y-0.004, f.y+0.004, x);
   float sB = 0.15 + 2.4*pow(fbm(vec2(vUv.y*30.0, uTime*0.22)),1.6);
   float sA = 0.15 + 2.4*pow(fbm(vec2(vUv.y*30.0+57.0, uTime*0.22+9.0)),1.6);
+  // Puffs: the inflow is released in bursts that differ from row to row (0 = steady stream).
+  sB *= mix(1.0, 2.2*smoothstep(0.38,0.72,noise(vec2(vUv.y*6.0, uTime*0.8))), uPuff);
+  sA *= mix(1.0, 2.2*smoothstep(0.38,0.72,noise(vec2(vUv.y*6.0+31.0, uTime*0.8+5.0))), uPuff);
   float edgeB = smoothstep(0.18,0.0,x), edgeA = smoothstep(0.82,1.0,x);
   float relax = 1.0-0.85*cv;
   // Density on every row is pulled toward that tier's liquidity: fast at the inflow edge, slow elsewhere.
-  b += (d.r*sB - b)*(1.0-exp(-(5.0*edgeB+0.4+uBoost)*relax*uDt))*inB;
-  a += (d.g*sA - a)*(1.0-exp(-(5.0*edgeA+0.4+uBoost)*relax*uDt))*inA;
+  b += (d.r*sB - b)*(1.0-exp(-(5.0*edgeB+uRelax+uBoost)*relax*uDt))*inB;
+  a += (d.g*sA - a)*(1.0-exp(-(5.0*edgeA+uRelax+uBoost)*relax*uDt))*inA;
   // Fluid pushed past its own front is annihilated in the spread and releases heat there.
   float kb = b*(1.0-exp(-16.0*uDt*(1.0-inB))), ka = a*(1.0-exp(-16.0*uDt*(1.0-inA)));
   b -= kb; a -= ka;
@@ -626,7 +629,7 @@ void main(){
   float hL=H(soft(uv-vec2(e.x,0),2.5)), hR=H(soft(uv+vec2(e.x,0),2.5)),
         hB=H(soft(uv-vec2(0,e.y),2.5)), hT=H(soft(uv+vec2(0,e.y),2.5));
   float lit = clamp(0.58 - dot(vec2(hR-hL,hT-hB), normalize(vec2(-0.6,0.75)))*1.1, 0.0, 1.0);
-  float ab = 1.0-exp(-1.9*c.r), aa = 1.0-exp(-1.9*c.g);
+  float ab = 1.0-exp(-2.6*pow(c.r,1.6)), aa = 1.0-exp(-2.6*pow(c.g,1.6));
   vec3 col = ab*mix(uBid[1]*0.45, mix(uBid[2],uBid[3],0.4), lit)
            + aa*mix(uAsk[1]*0.45, mix(uAsk[2],uAsk[3],0.4), lit);
   col += heatCol(c.b)*0.7;
@@ -1027,13 +1030,13 @@ document.getElementById('pal').onclick = () => { setPalette(palIdx + 1); hideTip
 /* ---------- materials: same data mapping, different motion and rendering ---------- */
 const MATERIALS = [
   { id: 'water', name: { en: 'Water', hu: 'Víz' }, prog: 'composite',
-    force: 150, curl: 24, turb: 1, velDiss: 0.2, dyeDiss: 0.1, bloomThr: 0.7, bloom: 0.13,
+    force: 150, curl: 24, turb: 1, velDiss: 0.2, dyeDiss: 0.1, relax: 0.4, puff: 0, bloomThr: 0.7, bloom: 0.13,
     en: 'The baseline: a clear liquid with a glassy surface that bends and reflects light. Medium thickness, medium swirl. Differences in liquidity are easiest to read here.',
     hu: 'A kiinduló anyag: tiszta folyadék üveges felülettel, amely megtöri és tükrözi a fényt. Közepesen sűrű, közepesen örvénylik. A likviditás különbségei itt olvashatók a legkönnyebben.' },
   { id: 'smoke', name: { en: 'Smoke', hu: 'Füst' }, prog: 'composite_smoke',
-    force: 150, curl: 44, turb: 1.9, velDiss: 0.12, dyeDiss: 0.5, bloomThr: 0.85, bloom: 0.07,
-    en: 'Very thin and restless: it swirls strongly and disperses quickly, so it stays dense only where liquidity keeps feeding it. Drawn soft and translucent, with no surface. It billows but does not rise, because this picture has no up or down.',
-    hu: 'Nagyon híg és nyugtalan: erősen örvénylik és gyorsan szétoszlik, ezért csak ott marad sűrű, ahol a likviditás folyamatosan táplálja. Puha és áttetsző, felület nélkül. Gomolyog, de nem száll felfelé, mert ezen a képen nincs fent és lent.' }
+    force: 215, curl: 48, turb: 2.0, velDiss: 0.08, dyeDiss: 0.8, relax: 0.07, puff: 1, bloomThr: 0.85, bloom: 0.07,
+    en: 'Thin, fast and short-lived. It is released in puffs, travels quickly and thins out on the way, so it leaves dark space between plumes. More liquidity means denser puffs that reach further toward the centre. Drawn soft and translucent, with no surface.',
+    hu: 'Híg, gyors és rövid életű. Pöffökben szabadul ki, gyorsan halad, és útközben megritkul, ezért a gomolyok között sötét tér marad. Több likviditás sűrűbb pöfföket ad, amelyek messzebb jutnak a közép felé. Puha és áttetsző, felület nélkül.' }
 ];
 let matIdx = 0;
 try { matIdx = +localStorage.getItem('lc-mat') || 0; } catch (e) {}
@@ -1148,7 +1151,7 @@ function simulate(dt) {
   tex('uVelocity', vel.read, 0); tex('uSource', vel.read, 0); f1('uDissipation', MAT.velDiss); draw(vel.write); vel.swap();
   tex('uVelocity', vel.read, 0); tex('uSource', dye.read, 1); f1('uDissipation', MAT.dyeDiss); draw(dye.write); dye.swap();
 
-  use(P.dye); setCommon(); tex('uDye', dye.read, 0); f1('uDt', dt); f1('uBoost', bootT < 2 ? 3 : 0);
+  use(P.dye); setCommon(); tex('uDye', dye.read, 0); f1('uDt', dt); f1('uBoost', bootT < 2 ? 3 : 0); f1('uRelax', MAT.relax); f1('uPuff', MAT.puff);
   draw(dye.write); dye.swap();
 }
 
