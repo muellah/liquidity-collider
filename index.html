@@ -63,6 +63,8 @@
     border: 1px solid rgba(255,255,255,0.22); border-radius: 999px; padding: 4px 13px 4px 6px; transition: background .2s, border-color .2s; }
   #pal { display: flex; margin-top: 8px; }
   button#pal i { background: linear-gradient(90deg, var(--bid) 50%, var(--ask) 50%); }
+  #what.fresh { animation: pulse 2.4s ease-in-out 6s 4; }
+  @keyframes pulse { 50% { border-color: rgba(255,255,255,0.85); box-shadow: 0 0 18px rgba(255,255,255,0.28); } }
   #what:hover, #pal:hover { background: rgba(255,255,255,0.13); border-color: rgba(255,255,255,0.5); }
   #what i, #pal i { font-style: normal; width: 16px; height: 16px; line-height: 16px; text-align: center; border-radius: 50%;
     background: var(--ink); color: #05070c; font-weight: 700; letter-spacing: 0; }
@@ -928,13 +930,16 @@ function applyLang() {
 function toggleAbout(on) {
   on = on === undefined ? !aboutEl.classList.contains('on') : on;
   aboutEl.classList.toggle('on', on); if (on) hideTip();
+  document.getElementById('what').classList.remove('fresh');
   try { localStorage.setItem('lc-seen', '1'); } catch (e) {}
 }
 document.getElementById('what').onclick = () => toggleAbout(true);
 aboutEl.addEventListener('click', (e) => { if (e.target === aboutEl) toggleAbout(false); });
 applyLang();
 let seen = false; try { seen = !!localStorage.getItem('lc-seen'); } catch (e) {}
-if ((!seen && !params.has('nointro')) || params.has('about')) setTimeout(() => toggleAbout(true), 1800);
+// The panel never opens by itself. On a first visit the button pulses a few times so it can be found.
+if (!seen) document.getElementById('what').classList.add('fresh');
+if (params.has('about')) setTimeout(() => toggleAbout(true), 1800);
 
 /* ---------- colour palettes: four stops per side (deep, body, bright, hot) ---------- */
 const PALETTES = [
