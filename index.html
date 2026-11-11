@@ -1,0 +1,1138 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no">
+<title>Liquidity Collider — BTC-USD</title>
+<style>
+  :root {
+    --bid: #58d0ff;
+    --ask: #ff9a52;
+    --ink: #e8eef7;
+    --dim: rgba(190, 205, 225, 0.55);
+    --faint: rgba(190, 205, 225, 0.28);
+    --mono: ui-monospace, "SF Mono", "JetBrains Mono", "Cascadia Mono", Menlo, Consolas, monospace;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { width: 100%; height: 100%; overflow: hidden; background: #020308; color: var(--ink);
+    font-family: var(--mono); -webkit-font-smoothing: antialiased; }
+  canvas { position: fixed; inset: 0; width: 100vw; height: 100vh; height: 100dvh; display: block; touch-action: none; }
+  .hud { position: fixed; z-index: 5; pointer-events: none; font-size: 10.5px; line-height: 1.75;
+    letter-spacing: 0.14em; text-transform: uppercase; font-variant-numeric: tabular-nums;
+    text-shadow: 0 0 12px rgba(0, 0, 0, 0.9), 0 1px 2px rgba(0, 0, 0, 0.9); transition: opacity 0.4s; }
+  body.nohud .hud, body.nohud #labels { opacity: 0; }
+  body.nohud [data-tip], body.nohud #what, body.nohud #pal { pointer-events: none; }
+  .k { color: var(--dim); }
+  .hud b { font-weight: 500; color: var(--ink); }
+  .tl { top: 26px; left: 30px; }
+  .tr { top: 26px; right: 30px; text-align: right; }
+  .bc { bottom: 26px; left: 50%; transform: translateX(-50%); text-align: center; }
+  .bl { bottom: 26px; left: 30px; color: var(--bid); }
+  .br { bottom: 26px; right: 30px; color: var(--ask); text-align: right; }
+  .title { color: var(--ink); letter-spacing: 0.32em; font-size: 10px; }
+  .pair { color: var(--dim); }
+  .mid { font-size: 38px; font-weight: 300; letter-spacing: 0.02em; line-height: 1.25; margin: 6px 0 2px; color: #fff; }
+  .mid small { font-size: 19px; color: var(--dim); }
+  .row { display: flex; gap: 14px; justify-content: space-between; }
+  .tr .row { justify-content: flex-end; }
+  .tr .row .k { min-width: 92px; }
+  .tr .row b { min-width: 96px; }
+  .status { display: flex; gap: 9px; align-items: center; justify-content: flex-end; color: var(--ink); letter-spacing: 0.24em; }
+  #dot { width: 7px; height: 7px; border-radius: 50%; background: #facc15; box-shadow: 0 0 10px currentColor; color: #facc15; }
+  #dot.live { background: #4ade80; color: #4ade80; }
+  #dot.replay { background: #c084fc; color: #c084fc; }
+  .note { color: var(--faint); font-size: 9.5px; }
+  .imb { display: flex; gap: 14px; align-items: center; justify-content: center; font-size: 17px; letter-spacing: 0.06em; margin: 2px 0; }
+  .imb .bid { color: var(--bid); } .imb .ask { color: var(--ask); }
+  #bar { position: relative; width: 220px; height: 2px; background: var(--ask); opacity: 0.9; }
+  #barfill { position: absolute; left: 0; top: 0; bottom: 0; width: 50%; background: var(--bid); transition: width 0.25s linear; }
+  #bar::after { content: ""; position: absolute; left: 50%; top: -4px; width: 1px; height: 10px; background: rgba(255,255,255,0.5); }
+  .axis { position: fixed; z-index: 5; left: 30px; pointer-events: none; font-size: 9px; letter-spacing: 0.2em;
+    color: var(--faint); text-transform: uppercase; transition: opacity 0.4s; }
+  body.nohud .axis { opacity: 0; }
+  body::after { content: ""; position: fixed; inset: 0; z-index: 3; pointer-events: none;
+    background: linear-gradient(180deg, rgba(2,3,8,0.72) 0, rgba(2,3,8,0) 24%, rgba(2,3,8,0) 80%, rgba(2,3,8,0.72) 100%); }
+  #labels { position: fixed; inset: 0; z-index: 4; pointer-events: none; transition: opacity 0.4s; }
+  .whale { position: absolute; transform: translate(-50%, -50%); font-size: 12px; letter-spacing: 0.16em; white-space: nowrap;
+    text-shadow: 0 0 14px currentColor, 0 0 3px #000; animation: rise 2.6s cubic-bezier(.2,.7,.2,1) forwards; }
+  .whale small { display: block; font-size: 9px; opacity: 0.7; text-align: center; }
+  @keyframes rise { 0% { opacity: 0; margin-top: 0; } 12% { opacity: 1; } 70% { opacity: 1; } 100% { opacity: 0; margin-top: -90px; } }
+  [data-tip] { pointer-events: auto; cursor: help; }
+  #what, #pal { pointer-events: auto; cursor: pointer; margin-top: 12px; display: inline-flex; gap: 8px; align-items: center;
+    font: inherit; letter-spacing: 0.2em; text-transform: uppercase; color: var(--ink); background: rgba(255,255,255,0.05);
+    border: 1px solid rgba(255,255,255,0.22); border-radius: 999px; padding: 4px 13px 4px 6px; transition: background .2s, border-color .2s; }
+  #pal { display: flex; margin-top: 8px; }
+  button#pal i { background: linear-gradient(90deg, var(--bid) 50%, var(--ask) 50%); }
+  #what:hover, #pal:hover { background: rgba(255,255,255,0.13); border-color: rgba(255,255,255,0.5); }
+  #what i, #pal i { font-style: normal; width: 16px; height: 16px; line-height: 16px; text-align: center; border-radius: 50%;
+    background: var(--ink); color: #05070c; font-weight: 700; letter-spacing: 0; }
+  #tip { position: fixed; z-index: 12; left: 0; top: 0; width: max-content; max-width: 370px; padding: 13px 15px 14px;
+    background: rgba(7, 10, 20, 0.93); border: 1px solid rgba(255,255,255,0.13); border-radius: 8px;
+    box-shadow: 0 12px 40px rgba(0,0,0,0.55);
+    font: 12px/1.55 system-ui, -apple-system, "Segoe UI", sans-serif; color: rgba(226,233,245,0.86);
+    pointer-events: none; opacity: 0; transition: opacity .16s; }
+  #tip.on { opacity: 1; }
+  #tip h4 { font: 500 10px/1.4 var(--mono); letter-spacing: 0.2em; text-transform: uppercase; color: #fff; margin-bottom: 7px;
+    display: flex; gap: 8px; align-items: center; }
+  #tip h4 i, #about li i { flex: none; width: 9px; height: 9px; border-radius: 2px; }
+  #tip .kv { display: flex; justify-content: space-between; gap: 22px; font: 10.5px/1.7 var(--mono); letter-spacing: 0.06em;
+    color: var(--dim); font-variant-numeric: tabular-nums; }
+  #tip .kv b { color: #fff; font-weight: 500; }
+  #tip .kv span, #tip .kv b { white-space: nowrap; }
+  #tip p { margin-top: 7px; }
+  #about { position: fixed; inset: 0; z-index: 15; display: flex; align-items: center; justify-content: center; padding: 20px;
+    background: rgba(2,3,8,0.55); -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px);
+    opacity: 0; pointer-events: none; transition: opacity .3s; }
+  #about.on { opacity: 1; pointer-events: auto; }
+  #about .card { position: relative; width: min(760px, 100%); max-height: calc(100vh - 40px); overflow: auto; padding: 34px 38px 28px;
+    background: rgba(8, 11, 22, 0.9); border: 1px solid rgba(255,255,255,0.13); border-radius: 12px;
+    box-shadow: 0 30px 90px rgba(0,0,0,0.7); font: 13.5px/1.6 system-ui, -apple-system, "Segoe UI", sans-serif; color: rgba(226,233,245,0.86);
+    transform: translateY(10px); transition: transform .3s; }
+  #about.on .card { transform: none; }
+  #about .eyebrow { font: 10px var(--mono); letter-spacing: 0.32em; text-transform: uppercase; color: var(--dim); }
+  #about h2 { font: 300 30px/1.2 system-ui, -apple-system, "Segoe UI", sans-serif; color: #fff; margin: 8px 0 12px; }
+  #about .lead { font-size: 15px; color: rgba(236,241,250,0.95); }
+  #about h3 { font: 500 10px var(--mono); letter-spacing: 0.24em; text-transform: uppercase; color: var(--dim); margin: 24px 0 10px; }
+  #about ul { list-style: none; display: grid; grid-template-columns: 1fr 1fr; gap: 12px 30px; }
+  #about li { display: flex; gap: 11px; }
+  #about li i { margin-top: 6px; }
+  #about li b { color: #fff; font-weight: 600; display: block; }
+  #about .keys { display: flex; flex-wrap: wrap; gap: 8px 20px; }
+  #about kbd { font: 10.5px var(--mono); color: #fff; border: 1px solid rgba(255,255,255,0.28); border-radius: 4px; padding: 1px 6px; margin-right: 6px; }
+  #about .foot { margin-top: 22px; font-size: 12px; color: var(--dim); }
+  #about .top { position: absolute; top: 16px; right: 18px; display: flex; gap: 8px; }
+  #about button { font: 10px var(--mono); letter-spacing: 0.16em; color: var(--ink); background: none; cursor: pointer;
+    border: 1px solid rgba(255,255,255,0.22); border-radius: 999px; padding: 4px 11px; }
+  #about button:hover { background: rgba(255,255,255,0.12); }
+  @media (max-width: 640px) { #about ul { grid-template-columns: 1fr; } #about .card { padding: 26px 22px 22px; } }
+  #err { position: fixed; inset: 0; display: none; align-items: center; justify-content: center; z-index: 20;
+    font-size: 13px; letter-spacing: 0.1em; color: #fca5a5; text-align: center; padding: 40px; }
+  @media (max-width: 760px) {
+    .hud { font-size: 9.5px; letter-spacing: 0.1em; }
+    .tl { left: 16px; top: calc(14px + env(safe-area-inset-top)); max-width: 56vw; }
+    .tr { right: 16px; top: calc(14px + env(safe-area-inset-top)); max-width: 40vw; }
+    .mid { font-size: 28px; } .mid small { font-size: 15px; }
+    .tr .row .k { display: none; } .tr .row b { min-width: 0; }
+    #feednote { display: none; }
+    .status { letter-spacing: 0.12em; }
+    #bar { width: 110px; }
+    .bl, .br { display: none; }
+    .bc { bottom: calc(18px + env(safe-area-inset-bottom)); width: calc(100vw - 32px); }
+    .axis { left: 16px; }
+    #tip { max-width: calc(100vw - 24px); }
+  }
+</style>
+</head>
+<body>
+<canvas id="gl"></canvas>
+
+<div class="hud tl">
+  <div class="title" data-tip="title">Liquidity Collider</div>
+  <div class="pair" data-tip="title">BTC–USD · Coinbase L2 · 64 tiers × 1 bp</div>
+  <div class="mid" id="mid" data-tip="mid">—</div>
+  <div class="row" data-tip="spread"><span class="k">Spread</span><b id="spr">—</b></div>
+  <button id="what"><i>?</i><span id="whatlbl">What is this</span></button>
+  <button id="pal" data-tip="palette"><i></i><span id="palname"></span></button>
+</div>
+
+<div class="hud tr">
+  <div data-tip="feed">
+    <div class="status"><i id="dot"></i><span id="feed">Connecting</span></div>
+    <div class="note" id="feednote">&nbsp;</div>
+  </div>
+  <div class="row" data-tip="ping"><span class="k">Ping</span><b id="rtt">—</b></div>
+  <div class="row" data-tip="tps"><span class="k">Throughput</span><b id="tps">—</b></div>
+  <div class="row" data-tip="tape"><span class="k">Tape</span><b id="mom">—</b></div>
+  <div class="row" data-tip="fps"><span class="k">Render</span><b id="fps">—</b></div>
+</div>
+
+<div class="hud bl" data-tip="bids">Bids ▸<div class="note" id="db">—</div></div>
+<div class="hud br" data-tip="asks">◂ Asks<div class="note" id="da">—</div></div>
+
+<div class="hud bc">
+  <div data-tip="ratio">
+    <div class="k">1% depth ratio</div>
+    <div class="imb"><b id="ib" class="bid">—</b><span id="bar"><i id="barfill"></i></span><b id="ia" class="ask">—</b></div>
+  </div>
+  <div class="note hint" id="hint"></div>
+</div>
+
+<div class="axis" style="top:50%; transform:translateY(-50%)" data-tip="touch">— touch</div>
+<div id="tip"></div>
+<div id="about"><div class="card" id="aboutcard"></div></div>
+<div id="labels"></div>
+<div id="err"></div>
+
+<script>
+'use strict';
+
+/* =====================================================================
+   1. FEED ENGINE  (runs inside a Web Worker; falls back to main thread)
+   Maintains the full L2 book, aggregates it into 64 one-basis-point
+   tiers per side, batches trades, and posts a Float32Array ~30x/second.
+   When the socket is unavailable it runs a seeded synthetic book.
+   ===================================================================== */
+function feedEngine(post, opts) {
+  const N = 64, PRODUCT = 'BTC-USD', WS_URL = 'wss://ws-feed.exchange.coinbase.com';
+  const bids = new Map(), asks = new Map();
+  const now = () => performance.now();
+  let live = false, connecting = false, forceReplay = !!opts.replay;
+  let ws = null, reconnectTimer = 0;
+  let lastMsgAt = 0, pingSentAt = 0, rtt = -1; const rttLog = [];
+  let tickCount = 0, tps = 0, lastTpsAt = now();
+  let agg = { buy: { usd: 0, size: 0 }, sell: { usd: 0, size: 0 } };
+  let mom = 0, momSigned = 0, lastEmit = now();
+  let synth = null;
+
+  function onTrade(takerSide, price, size) {
+    const a = agg[takerSide]; a.usd += price * size; a.size += size;
+  }
+
+  /* ---------- live socket ---------- */
+  function connect() {
+    if (forceReplay || ws) return;
+    let sock;
+    try { sock = new WebSocket(WS_URL); } catch (e) { scheduleReconnect(); return; }
+    ws = sock; connecting = true;
+    let gotSnap = false;
+    const timer = setTimeout(() => { if (!gotSnap) { try { sock.close(); } catch (e) {} } }, 8000);
+    sock.onopen = () => {
+      sock.send(JSON.stringify({ type: 'subscribe', product_ids: [PRODUCT], channels: ['level2_batch', 'matches', 'heartbeat'] }));
+      pingSentAt = now();
+    };
+    sock.onmessage = (ev) => {
+      if (sock !== ws) return;
+      lastMsgAt = now();
+      let m; try { m = JSON.parse(ev.data); } catch (e) { return; }
+      switch (m.type) {
+        case 'snapshot':
+          synth = null; bids.clear(); asks.clear();
+          for (const r of m.bids) bids.set(+r[0], +r[1]);
+          for (const r of m.asks) asks.set(+r[0], +r[1]);
+          gotSnap = true; clearTimeout(timer); live = true; connecting = false;
+          break;
+        case 'l2update':
+          if (!live) break;
+          for (const ch of m.changes) {
+            const book = ch[0] === 'buy' ? bids : asks, p = +ch[1], s = +ch[2];
+            if (s === 0) book.delete(p); else book.set(p, s);
+            tickCount++;
+          }
+          break;
+        case 'match':
+          // "side" is the maker side: a resting sell that got hit means the taker bought.
+          if (live) { onTrade(m.side === 'sell' ? 'buy' : 'sell', +m.price, +m.size); tickCount++; }
+          break;
+        case 'subscriptions':
+          if (pingSentAt) { rttLog.push(now() - pingSentAt); if (rttLog.length > 5) rttLog.shift(); rtt = Math.min.apply(null, rttLog); pingSentAt = 0; }
+          break;
+      }
+    };
+    const down = () => {
+      clearTimeout(timer);
+      if (sock !== ws) return;
+      ws = null; connecting = false;
+      startReplay(); scheduleReconnect();
+    };
+    sock.onclose = down; sock.onerror = down;
+  }
+  function scheduleReconnect() {
+    if (reconnectTimer || forceReplay) return;
+    reconnectTimer = setTimeout(() => { reconnectTimer = 0; connect(); }, 20000);
+  }
+  function dropSocket() {
+    const s = ws; ws = null; connecting = false;
+    if (s) { try { s.close(); } catch (e) {} }
+  }
+  function startReplay() {
+    if (live || !synth) { bids.clear(); asks.clear(); synth = makeSynth(0xC01DBEEF); }
+    live = false; rtt = -1; rttLog.length = 0;
+  }
+
+  /* ---------- deterministic synthetic book ---------- */
+  function makeSynth(seed) {
+    let s = seed >>> 0;
+    const rnd = () => { s = (s + 0x6D2B79F5) | 0; let t = Math.imul(s ^ (s >>> 15), 1 | s);
+      t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
+    const gauss = () => (rnd() + rnd() + rnd() + rnd() - 2) * 1.732;
+    const R = 1150;                         // book half-width in USD (covers > 1% of mid)
+    let trend = 0, heat = 0.2, nextWhale = 120, burst = 0, burstSide = 'buy', stepN = 0;
+    const prof = (p, dist, mult) => {       // resting size (BTC) at an integer price level
+      let v = (0.16 + 0.5 * Math.pow(Math.max(dist, 1) / 600, 0.8)) * Math.exp(0.7 * gauss()) * mult;
+      if (p % 100 === 0) v *= 5 + 4 * rnd(); else if (p % 50 === 0) v *= 3; else if (p % 10 === 0) v *= 1.6;
+      return v;
+    };
+    const ref = 104200;
+    for (let p = ref - R; p <= ref + R; p++) {
+      if (p < ref) bids.set(p, prof(p, ref - p, 1)); else if (p > ref) asks.set(p, prof(p, p - ref, 1));
+    }
+    function best() {
+      let bb = -Infinity, ba = Infinity;
+      for (const p of bids.keys()) if (p > bb) bb = p;
+      for (const p of asks.keys()) if (p < ba) ba = p;
+      return [bb, ba];
+    }
+    function market(side, size) {           // taker order walks the opposing book
+      const book = side === 'buy' ? asks : bids, dir = side === 'buy' ? 1 : -1;
+      const b = best(); let p = side === 'buy' ? b[1] : b[0];
+      if (!isFinite(p)) return;
+      let rem = size, usd = 0, filled = 0;
+      for (let k = 0; k < 900 && rem > 1e-9; k++, p += dir) {
+        const q = book.get(p); if (!q) continue;
+        const t = Math.min(q, rem); rem -= t; filled += t; usd += t * p;
+        if (q - t < 1e-9) book.delete(p); else book.set(p, q - t);
+        tickCount++;
+      }
+      if (filled > 0) onTrade(side, usd / filled, filled);
+    }
+    function whale(side, size) {
+      side = side || (rnd() < 0.5 + 0.4 * trend ? 'buy' : 'sell');
+      size = size || 2 + 38 * Math.pow(rnd(), 2.2);
+      market(side, size);
+      heat = Math.min(1, heat + 0.5); trend += side === 'buy' ? 0.25 : -0.25;
+      burst = 4 + ((rnd() * 8) | 0); burstSide = side;
+    }
+    function step() {
+      stepN++;
+      trend += -trend * 0.02 + 0.06 * gauss(); trend = Math.max(-1, Math.min(1, trend));
+      heat = heat * 0.94 + 0.008;
+      for (let i = 0; i < 8; i++) {         // clustered small market orders
+        if (rnd() >= heat * 0.75) continue;
+        const side = rnd() < 0.5 + 0.35 * trend ? 'buy' : 'sell';
+        const size = Math.min(25, 0.004 * Math.pow(1 - rnd(), -1 / 1.25));
+        market(side, size); heat = Math.min(1, heat + 0.004 + size * 0.01);
+      }
+      if (--nextWhale <= 0) { whale(); nextWhale = 120 + ((rnd() * 300) | 0); }
+      if (burst > 0 && stepN % 2 === 0) { burst--; market(burstSide, 0.1 + 1.2 * rnd() * rnd()); }
+
+      let b = best(); let bb = b[0], ba = b[1];
+      const mb = 1 + 0.45 * trend, ma = 1 - 0.45 * trend;
+      for (let i = 0; i < 40; i++) {        // limit order churn, concentrated near the touch
+        const dist = 1 + ((-Math.log(1 - rnd()) * 140) | 0); if (dist > R) continue;
+        const isBid = rnd() < 0.5, p = isBid ? bb - dist + 1 : ba + dist - 1, book = isBid ? bids : asks;
+        if (rnd() < 0.12) book.delete(p); else book.set(p, prof(p, dist, isBid ? mb : ma));
+        tickCount++;
+      }
+      b = best(); bb = b[0]; ba = b[1];
+      const mid = (bb + ba) / 2, lo = Math.floor(mid - R), hi = Math.ceil(mid + R);
+      for (let p = lo; p <= hi; p++) {      // refill holes; the spread heals inward from both edges
+        if (p <= bb) { if (!bids.has(p) && rnd() < 0.04) { bids.set(p, prof(p, mid - p, mb)); tickCount++; } }
+        else if (p >= ba) { if (!asks.has(p) && rnd() < 0.04) { asks.set(p, prof(p, p - mid, ma)); tickCount++; } }
+      }
+      for (let k = 1 + (((ba - bb) / 40) | 0); k > 0 && ba - bb > 1; k--) {
+        if (rnd() < 0.6) { bb++; bids.set(bb, prof(bb, 1, mb)); tickCount++; }
+        if (ba - bb > 1 && rnd() < 0.6) { ba--; asks.set(ba, prof(ba, 1, ma)); tickCount++; }
+      }
+      if (stepN % 50 === 0) {
+        for (const p of bids.keys()) if (p < lo - 200) bids.delete(p);
+        for (const p of asks.keys()) if (p > hi + 200) asks.delete(p);
+      }
+    }
+    return { step, whale };
+  }
+
+  /* ---------- aggregation + emit ---------- */
+  function emit() {
+    const t = now(), dt = Math.max(0.001, (t - lastEmit) / 1000 * (opts.rate || 1)); lastEmit = t;
+    if (!live && synth) synth.step();
+    if (t - lastTpsAt >= 1000) { tps = tickCount * 1000 / (t - lastTpsAt); tickCount = 0; lastTpsAt = t; }
+
+    let bb = -Infinity, ba = Infinity;
+    for (const p of bids.keys()) if (p > bb) bb = p;
+    for (const p of asks.keys()) if (p < ba) ba = p;
+    if (!(bb > 0) || !(ba < Infinity)) return;
+    const mid = (bb + ba) / 2, w = mid * 1e-4, lim = mid * 0.01;
+    const out = new Float32Array(N * 2 + 16);
+    let d1b = 0, d1a = 0;
+    for (const e of bids) { const dp = mid - e[0]; if (dp > lim) continue; const u = e[0] * e[1]; d1b += u;
+      const i = Math.max(0, (dp / w) | 0); if (i < N) out[i] += u; }
+    for (const e of asks) { const dp = e[0] - mid; if (dp > lim) continue; const u = e[0] * e[1]; d1a += u;
+      const i = Math.max(0, (dp / w) | 0); if (i < N) out[N + i] += u; }
+
+    const trades = [];
+    const fb = agg.buy.usd, fs = agg.sell.usd;
+    if (fb > 0) trades.push({ side: 'buy', usd: fb, size: agg.buy.size });
+    if (fs > 0) trades.push({ side: 'sell', usd: fs, size: agg.sell.size });
+    agg = { buy: { usd: 0, size: 0 }, sell: { usd: 0, size: 0 } };
+    const a = 1 - Math.exp(-dt / 1.5);
+    mom += ((fb + fs) / dt - mom) * a; momSigned += ((fb - fs) / dt - momSigned) * a;
+
+    const M = N * 2;
+    out[M] = mid; out[M + 1] = Math.max(0, ba - bb); out[M + 2] = d1b; out[M + 3] = d1a;
+    out[M + 4] = live ? 1 : 0; out[M + 5] = rtt; out[M + 6] = tps; out[M + 7] = mom; out[M + 8] = momSigned;
+    out[M + 9] = connecting ? 1 : 0;
+    post({ buf: out.buffer, trades }, [out.buffer]);
+  }
+
+  setInterval(emit, 33 / (opts.rate || 1));
+  setInterval(() => {
+    const t = now();
+    if (live && t - lastMsgAt > 8000) { dropSocket(); startReplay(); scheduleReconnect(); return; }
+    if (pingSentAt && t - pingSentAt > 10000) pingSentAt = 0;
+    if (live && ws && ws.readyState === 1 && !pingSentAt) {
+      // Re-subscribing to heartbeat is idempotent; the "subscriptions" ack gives a round-trip time.
+      pingSentAt = t;
+      try { ws.send(JSON.stringify({ type: 'subscribe', product_ids: [PRODUCT], channels: ['heartbeat'] })); } catch (e) { pingSentAt = 0; }
+    }
+  }, 4000);
+
+  startReplay();          // the screen is never empty: replay runs until the live snapshot lands
+  connect();
+
+  return function onCommand(m) {
+    if (m.cmd === 'whale') { if (!live && synth) synth.whale(m.side); }
+    else if (m.cmd === 'toggle') {
+      forceReplay = !forceReplay;
+      if (forceReplay) { clearTimeout(reconnectTimer); reconnectTimer = 0; dropSocket(); startReplay(); }
+      else connect();
+    }
+  };
+}
+
+/* =====================================================================
+   2. MAIN-THREAD STATE
+   ===================================================================== */
+const N = 64;
+const params = new URLSearchParams(location.search);
+const rawB = new Float32Array(N), rawA = new Float32Array(N);
+const smB = new Float32Array(N), smA = new Float32Array(N), smOff = new Float32Array(N);
+const dataTexBuf = new Float32Array(N * 4);
+const S = { mid: 0, spread: 0, d1b: 0, d1a: 0, live: false, connecting: false, rtt: -1, tps: 0, mom: 0, momSigned: 0,
+            vref: 0, momRef: 0, gap: 0.012, turb: 0.2, energy: 0, got: false, fps: 60 };
+const tradeQueue = [];
+
+function onFeed(msg) {
+  const f = new Float32Array(msg.buf), M = N * 2;
+  rawB.set(f.subarray(0, N)); rawA.set(f.subarray(N, M));
+  S.mid = f[M]; S.spread = f[M + 1]; S.d1b = f[M + 2]; S.d1a = f[M + 3];
+  const wasLive = S.live;
+  S.live = f[M + 4] > 0.5; S.rtt = f[M + 5]; S.tps = f[M + 6]; S.mom = f[M + 7]; S.momSigned = f[M + 8];
+  S.connecting = f[M + 9] > 0.5;
+  if (wasLive !== S.live) { S.vref = 0; tradeQueue.length = 0; }
+  S.got = true;
+  for (const t of msg.trades) tradeQueue.push(t);
+}
+
+const feedOpts = { replay: params.has('replay'), rate: +params.get('rate') || 1 };
+let sendCmd;
+try {
+  const src = 'const h=(' + feedEngine.toString() + ')((m,t)=>postMessage(m,t),' +
+              JSON.stringify(feedOpts) + ');onmessage=e=>h(e.data);';
+  const w = new Worker(URL.createObjectURL(new Blob([src], { type: 'text/javascript' })));
+  w.onmessage = (e) => onFeed(e.data);
+  w.onerror = () => {};
+  sendCmd = (m) => w.postMessage(m);
+} catch (e) {
+  sendCmd = feedEngine((m) => onFeed(m), feedOpts);
+}
+
+/* =====================================================================
+   3. WEBGL2 PIPELINE
+   ===================================================================== */
+const canvas = document.getElementById('gl');
+const gl = canvas.getContext('webgl2', { alpha: false, antialias: false, depth: false, stencil: false,
+                                         powerPreference: 'high-performance', preserveDrawingBuffer: false });
+function fatal(msg) { const e = document.getElementById('err'); e.style.display = 'flex'; e.textContent = msg; throw new Error(msg); }
+if (!gl) fatal('WebGL2 is not available in this browser.');
+if (!gl.getExtension('EXT_color_buffer_float') && !gl.getExtension('EXT_color_buffer_half_float'))
+  fatal('Floating-point render targets are not supported on this GPU.');
+
+const VS = `#version 300 es
+in vec2 aPos; out vec2 vUv;
+void main(){ vUv = aPos*0.5+0.5; gl_Position = vec4(aPos,0.0,1.0); }`;
+const HEAD = `#version 300 es
+precision highp float; precision highp sampler2D;
+in vec2 vUv; out vec4 o;
+`;
+// Shared by the force, dye and composite passes: tier lookup and front geometry.
+const COMMON = `
+uniform sampler2D uData; uniform float uGap; uniform float uAspect; uniform float uTime;
+float hash(vec2 p){ p = fract(p*vec2(123.34,456.21)); p += dot(p,p+45.32); return fract(p.x*p.y); }
+float noise(vec2 p){ vec2 i=floor(p), f=fract(p); f=f*f*(3.0-2.0*f);
+  return mix(mix(hash(i),hash(i+vec2(1,0)),f.x), mix(hash(i+vec2(0,1)),hash(i+vec2(1,1)),f.x), f.y); }
+float fbm(vec2 p){ float a=0.5, s=0.0; for(int i=0;i<4;i++){ s+=a*noise(p); p=p*2.03+17.1; a*=0.5; } return s; }
+// Vertical centre = touch (tier 0). Distance from centre = basis points from mid, 64 tiers each way.
+float tierT(float y){ return abs(y-0.5)*2.0; }
+// r = bid liquidity, g = ask liquidity (0..1), b = front offset from cumulative imbalance.
+vec4 tierData(float y){ return texture(uData, vec2(tierT(y)*(63.0/64.0)+0.5/64.0, 0.5)); }
+// x of the bid front and the ask front on this row. The space between them is the spread.
+vec2 fronts(vec2 uv, vec4 d){
+  float t = tierT(uv.y);
+  float c = 0.5 + d.b + (noise(vec2(uv.y*7.0, uTime*0.3))-0.5)*0.014;
+  float g = uGap*0.5 + 0.03*t*t;
+  return vec2(c-g, c+g);
+}
+`;
+
+const FS = {
+  copy: HEAD + `uniform sampler2D uTex; uniform float uValue; void main(){ o = uValue*texture(uTex,vUv); }`,
+
+  advect: HEAD + `uniform sampler2D uVelocity, uSource; uniform vec2 uTexel; uniform float uDt, uDissipation;
+void main(){ vec2 c = vUv - uDt*texture(uVelocity,vUv).xy*uTexel; o = texture(uSource,c)/(1.0+uDissipation*uDt); }`,
+
+  // Body forces: per-tier inflow toward the centre, turbulence from tape momentum, expanding shock rings.
+  force: HEAD + COMMON + `uniform sampler2D uVel; uniform float uDt, uForce, uTurb; uniform vec4 uShock[6];
+void main(){
+  vec2 v = texture(uVel,vUv).xy;
+  vec4 d = tierData(vUv.y); vec2 f = fronts(vUv,d);
+  float lb = smoothstep(f.x+0.02, f.x-0.06, vUv.x);
+  float la = smoothstep(f.y-0.02, f.y+0.06, vUv.x);
+  float sb = 0.45 + 1.1*noise(vec2(vUv.y*38.0, uTime*0.45));
+  float sa = 0.45 + 1.1*noise(vec2(vUv.y*38.0+91.0, uTime*0.45+13.0));
+  v.x += uForce*uDt*(d.r*lb*sb - d.g*la*sa);
+  vec2 p = vec2(vUv.x*uAspect, vUv.y)*5.0 + vec2(0.0,uTime*0.12); float e = 0.02;
+  float ny = noise(p+vec2(0,e))-noise(p-vec2(0,e)), nx = noise(p+vec2(e,0))-noise(p-vec2(e,0));
+  v += vec2(ny,-nx)/(2.0*e)*uTurb*uDt*(lb+la);
+  for(int i=0;i<6;i++){ vec4 s = uShock[i]; if(s.w<=0.001) continue;
+    vec2 q = vec2((vUv.x-s.x)*uAspect, vUv.y-s.y); float dist = length(q);
+    float ring = exp(-pow((dist-s.z)/0.03,2.0))*s.w;
+    v += q/(dist+1e-4)*ring*1500.0*uDt; }
+  v /= 1.0+0.35*uDt;
+  o = vec4(clamp(v,-1200.0,1200.0),0.0,1.0);
+}`,
+
+  curl: HEAD + `uniform sampler2D uVel; uniform vec2 uTexel;
+void main(){ float L=texture(uVel,vUv-vec2(uTexel.x,0)).y, R=texture(uVel,vUv+vec2(uTexel.x,0)).y,
+  T=texture(uVel,vUv+vec2(0,uTexel.y)).x, B=texture(uVel,vUv-vec2(0,uTexel.y)).x;
+  o = vec4(0.5*(R-L-T+B),0,0,1); }`,
+
+  vorticity: HEAD + `uniform sampler2D uVel, uCurl; uniform vec2 uTexel; uniform float uDt, uCurlK;
+void main(){ float L=texture(uCurl,vUv-vec2(uTexel.x,0)).x, R=texture(uCurl,vUv+vec2(uTexel.x,0)).x,
+  T=texture(uCurl,vUv+vec2(0,uTexel.y)).x, B=texture(uCurl,vUv-vec2(0,uTexel.y)).x, C=texture(uCurl,vUv).x;
+  vec2 f = 0.5*vec2(abs(T)-abs(B), abs(R)-abs(L)); f /= length(f)+1e-4; f *= uCurlK*C; f.y *= -1.0;
+  o = vec4(texture(uVel,vUv).xy + f*uDt, 0, 1); }`,
+
+  divergence: HEAD + `uniform sampler2D uVel; uniform vec2 uTexel;
+void main(){ vec2 vL=vUv-vec2(uTexel.x,0), vR=vUv+vec2(uTexel.x,0), vT=vUv+vec2(0,uTexel.y), vB=vUv-vec2(0,uTexel.y);
+  float L=texture(uVel,vL).x, R=texture(uVel,vR).x, T=texture(uVel,vT).y, B=texture(uVel,vB).y; vec2 C=texture(uVel,vUv).xy;
+  if(vL.x<0.0) L=-C.x; if(vR.x>1.0) R=-C.x; if(vT.y>1.0) T=-C.y; if(vB.y<0.0) B=-C.y;
+  o = vec4(0.5*(R-L+T-B),0,0,1); }`,
+
+  pressure: HEAD + `uniform sampler2D uP, uDiv; uniform vec2 uTexel;
+void main(){ float L=texture(uP,vUv-vec2(uTexel.x,0)).x, R=texture(uP,vUv+vec2(uTexel.x,0)).x,
+  T=texture(uP,vUv+vec2(0,uTexel.y)).x, B=texture(uP,vUv-vec2(0,uTexel.y)).x;
+  o = vec4((L+R+B+T-texture(uDiv,vUv).x)*0.25,0,0,1); }`,
+
+  gradient: HEAD + `uniform sampler2D uP, uVel; uniform vec2 uTexel;
+void main(){ float L=texture(uP,vUv-vec2(uTexel.x,0)).x, R=texture(uP,vUv+vec2(uTexel.x,0)).x,
+  T=texture(uP,vUv+vec2(0,uTexel.y)).x, B=texture(uP,vUv-vec2(0,uTexel.y)).x;
+  o = vec4(texture(uVel,vUv).xy - vec2(R-L,T-B),0,1); }`,
+
+  // Dye channels: r = bid density, g = ask density, b = heat (annihilation / shock), a = cavity mask.
+  dye: HEAD + COMMON + `uniform sampler2D uDye; uniform float uDt, uBoost;
+void main(){
+  vec4 c = texture(uDye,vUv); float b=c.r, a=c.g, h=c.b, cv=c.a; float x=vUv.x;
+  vec4 d = tierData(vUv.y); vec2 f = fronts(vUv,d);
+  float inB = smoothstep(f.x+0.004, f.x-0.004, x);
+  float inA = smoothstep(f.y-0.004, f.y+0.004, x);
+  float sB = 0.15 + 2.4*pow(fbm(vec2(vUv.y*30.0, uTime*0.22)),1.6);
+  float sA = 0.15 + 2.4*pow(fbm(vec2(vUv.y*30.0+57.0, uTime*0.22+9.0)),1.6);
+  float edgeB = smoothstep(0.18,0.0,x), edgeA = smoothstep(0.82,1.0,x);
+  float relax = 1.0-0.85*cv;
+  // Density on every row is pulled toward that tier's liquidity: fast at the inflow edge, slow elsewhere.
+  b += (d.r*sB - b)*(1.0-exp(-(5.0*edgeB+0.4+uBoost)*relax*uDt))*inB;
+  a += (d.g*sA - a)*(1.0-exp(-(5.0*edgeA+0.4+uBoost)*relax*uDt))*inA;
+  // Fluid pushed past its own front is annihilated in the spread and releases heat there.
+  float kb = b*(1.0-exp(-16.0*uDt*(1.0-inB))), ka = a*(1.0-exp(-16.0*uDt*(1.0-inA)));
+  b -= kb; a -= ka;
+  h = h*exp(-7.0*uDt) + (kb+ka)*0.4;
+  cv *= exp(-1.6*uDt);
+  o = vec4(clamp(b,0.0,2.5), clamp(a,0.0,2.5), clamp(h,0.0,1.2), cv);
+}`,
+
+  splat: HEAD + `uniform sampler2D uTex; uniform vec2 uPoint; uniform vec3 uColor; uniform float uRadius, uAspect;
+void main(){ vec2 p = vec2((vUv.x-uPoint.x)*uAspect, vUv.y-uPoint.y);
+  o = vec4(texture(uTex,vUv).xyz + exp(-dot(p,p)/(uRadius*uRadius))*uColor, 1.0); }`,
+
+  // Radial velocity impulse for an executed trade.
+  burst: HEAD + `uniform sampler2D uTex; uniform vec2 uPoint; uniform float uRadius, uStrength, uDirBias, uAspect;
+void main(){ vec2 p = vec2((vUv.x-uPoint.x)*uAspect, vUv.y-uPoint.y); float dist = length(p);
+  vec2 dir = p/(dist+1e-4); dir.x += uDirBias;
+  o = vec4(texture(uTex,vUv).xy + dir*exp(-dist*dist/(uRadius*uRadius))*uStrength, 0, 1); }`,
+
+  // Consumed liquidity: removes one side's density inside a bubble and marks it as a cavity.
+  cavity: HEAD + `uniform sampler2D uTex; uniform vec2 uPoint; uniform float uRadius, uSide, uHeat, uAspect;
+void main(){ vec4 c = texture(uTex,vUv);
+  vec2 p = vec2((vUv.x-uPoint.x)*uAspect, vUv.y-uPoint.y); float dist = length(p);
+  float m = smoothstep(uRadius, uRadius*0.55, dist);
+  float rim = exp(-pow((dist-uRadius)/(uRadius*0.22+0.003),2.0));
+  c.r *= 1.0-m*(1.0-uSide); c.g *= 1.0-m*uSide;
+  c.b += rim*uHeat + m*uHeat*0.05; c.a = max(c.a,m);
+  o = c; }`,
+
+  // Scene: density treated as a height field -> normals -> refraction, dispersion, specular, reflection.
+  composite: HEAD + COMMON + `uniform sampler2D uDye; uniform vec2 uTexel; uniform vec4 uShock[6];
+uniform vec3 uBid[4]; uniform vec3 uAsk[4];
+vec3 ramp(vec3 a, vec3 b, vec3 c, vec3 e, float d){ vec3 x = mix(a,b,smoothstep(0.0,0.45,d));
+  x = mix(x,c,smoothstep(0.3,0.75,d)); return mix(x,e,smoothstep(0.75,1.5,d)); }
+vec3 bidRamp(float d){ return ramp(uBid[0],uBid[1],uBid[2],uBid[3],d); }
+vec3 askRamp(float d){ return ramp(uAsk[0],uAsk[1],uAsk[2],uAsk[3],d); }
+vec3 shade(vec4 c){ return bidRamp(c.r)*(1.0-exp(-1.8*c.r))*0.95 + askRamp(c.g)*(1.0-exp(-1.8*c.g))*0.95
+  + (vec3(1.0,0.55,0.18) + vec3(0.6,0.9,1.0)*c.b*c.b)*c.b*c.b*1.2; }
+float H(vec4 c){ return c.r+c.g+0.6*c.b; }
+void main(){
+  vec2 uv = vUv; float ring = 0.0;
+  for(int i=0;i<6;i++){ vec4 s = uShock[i]; if(s.w<=0.001) continue;
+    vec2 p = vec2((uv.x-s.x)*uAspect, uv.y-s.y); float dist = length(p); float w = 0.004+0.025*s.z;
+    float r = exp(-pow((dist-s.z)/w,2.0))*s.w;
+    uv -= p/(dist+1e-4)*r*0.02*vec2(1.0/uAspect,1.0); ring += r; }
+  vec2 e = uTexel*1.5;
+  float hL=H(texture(uDye,uv-vec2(e.x,0))), hR=H(texture(uDye,uv+vec2(e.x,0))),
+        hB=H(texture(uDye,uv-vec2(0,e.y))), hT=H(texture(uDye,uv+vec2(0,e.y)));
+  vec3 Nn = normalize(vec3(-vec2(hR-hL,hT-hB)*2.2, 1.0));
+  vec2 ro = Nn.xy*0.010;
+  vec4 c0=texture(uDye,uv+ro*0.5), c1=texture(uDye,uv+ro), c2=texture(uDye,uv+ro*1.5);
+  vec3 base = shade(c1);
+  vec3 col = vec3(shade(c0).r, base.g, shade(c2).b);
+  float body = smoothstep(0.05,0.6,H(c1));
+  vec3 L1 = normalize(vec3(-0.5,0.6,0.62)), L2 = normalize(vec3(0.6,-0.4,0.55)), V = vec3(0,0,1);
+  col *= 0.62 + 0.6*max(dot(Nn,L1),0.0);
+  float s1 = pow(max(dot(Nn,normalize(L1+V)),0.0),90.0), s2 = pow(max(dot(Nn,normalize(L2+V)),0.0),40.0);
+  vec3 tint = base/(max(base.r,max(base.g,base.b))+1e-3);
+  col += body*(s1*1.4 + s2*0.5*tint);
+  col += body*pow(1.0-Nn.z,1.5)*tint*0.9;
+  vec3 Rf = reflect(-V,Nn);
+  col += body*pow(0.5+0.5*sin(Rf.x*16.0+Rf.y*11.0+uTime*0.15),8.0)*0.18*(tint+0.3);
+  float t = tierT(uv.y+ro.y*4.0)*64.0;
+  float tick = 1.0-smoothstep(0.0,0.07,abs(fract(t/8.0+0.5)-0.5)*8.0);
+  col += (vec3(0.006,0.009,0.018) + vec3(0.02,0.03,0.05)*tick*0.5)*(1.0-body*0.7);
+  col += ring*vec3(1.0,0.93,0.85)*0.35;
+  o = vec4(col,1.0);
+}`,
+
+  prefilter: HEAD + `uniform sampler2D uTex; uniform float uThreshold;
+void main(){ vec3 c = texture(uTex,vUv).rgb; float br = max(c.r,max(c.g,c.b));
+  o = vec4(c*max(br-uThreshold,0.0)/(br+1e-4),1.0); }`,
+
+  blur: HEAD + `uniform sampler2D uTex; uniform vec2 uTexel;
+void main(){ vec4 s = texture(uTex,vUv)*4.0;
+  s += texture(uTex,vUv+uTexel*vec2(-1,-1)); s += texture(uTex,vUv+uTexel*vec2(1,-1));
+  s += texture(uTex,vUv+uTexel*vec2(-1,1));  s += texture(uTex,vUv+uTexel*vec2(1,1));
+  o = s/8.0; }`,
+
+  final: HEAD + `uniform sampler2D uScene, uBloom; uniform float uTime, uCA, uBloomI;
+vec3 aces(vec3 x){ return clamp((x*(2.51*x+0.03))/(x*(2.43*x+0.59)+0.14),0.0,1.0); }
+float hash(vec2 p){ p = fract(p*vec2(123.34,456.21)); p += dot(p,p+45.32); return fract(p.x*p.y); }
+void main(){
+  vec2 c = vUv-0.5; float r2 = dot(c,c);
+  vec2 off = c*(0.0016+uCA)*(0.35+r2*3.2);
+  vec3 col = vec3(texture(uScene,vUv+off).r, texture(uScene,vUv).g, texture(uScene,vUv-off).b);
+  vec3 bl = vec3(texture(uBloom,vUv+off*2.0).r, texture(uBloom,vUv).g, texture(uBloom,vUv-off*2.0).b);
+  col += bl*uBloomI;
+  col *= 1.0 - 1.15*r2;
+  col = pow(aces(col*1.05), vec3(1.0/2.2));
+  col += (hash(vUv*vec2(1917.0,1031.0)+fract(uTime)*71.0)-0.5)*0.022;
+  o = vec4(col,1.0);
+}`
+};
+
+function compile(type, src) {
+  const s = gl.createShader(type); gl.shaderSource(s, src); gl.compileShader(s);
+  if (!gl.getShaderParameter(s, gl.COMPILE_STATUS)) { const log = gl.getShaderInfoLog(s); console.error(log, src); fatal('Shader compile error: ' + log); }
+  return s;
+}
+const vsObj = compile(gl.VERTEX_SHADER, VS);
+const P = {};
+for (const name in FS) {
+  const p = gl.createProgram();
+  gl.attachShader(p, vsObj); gl.attachShader(p, compile(gl.FRAGMENT_SHADER, FS[name]));
+  gl.bindAttribLocation(p, 0, 'aPos'); gl.linkProgram(p);
+  if (!gl.getProgramParameter(p, gl.LINK_STATUS)) fatal('Program link error (' + name + '): ' + gl.getProgramInfoLog(p));
+  const u = {}, n = gl.getProgramParameter(p, gl.ACTIVE_UNIFORMS);
+  for (let i = 0; i < n; i++) { const info = gl.getActiveUniform(p, i), nm = info.name.replace('[0]', ''); u[nm] = gl.getUniformLocation(p, info.name); }
+  P[name] = { p, u };
+}
+
+const vao = gl.createVertexArray(); gl.bindVertexArray(vao);
+gl.bindBuffer(gl.ARRAY_BUFFER, gl.createBuffer());
+gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 3, -1, -1, 3]), gl.STATIC_DRAW);
+gl.enableVertexAttribArray(0); gl.vertexAttribPointer(0, 2, gl.FLOAT, false, 0, 0);
+
+let garbage = [];
+function target(w, h, filter) {
+  const tex = gl.createTexture(); gl.bindTexture(gl.TEXTURE_2D, tex);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, filter); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, filter);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+  gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA16F, w, h, 0, gl.RGBA, gl.HALF_FLOAT, null);
+  const fbo = gl.createFramebuffer(); gl.bindFramebuffer(gl.FRAMEBUFFER, fbo);
+  gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, tex, 0);
+  gl.viewport(0, 0, w, h); gl.clearColor(0, 0, 0, 0); gl.clear(gl.COLOR_BUFFER_BIT);
+  garbage.push({ tex, fbo });
+  return { tex, fbo, w, h, texel: [1 / w, 1 / h] };
+}
+function double(w, h, filter) {
+  let a = target(w, h, filter), b = target(w, h, filter);
+  return { get read() { return a; }, get write() { return b; }, swap() { const t = a; a = b; b = t; }, w, h, texel: [1 / w, 1 / h] };
+}
+function draw(t) {
+  if (t) { gl.bindFramebuffer(gl.FRAMEBUFFER, t.fbo); gl.viewport(0, 0, t.w, t.h); }
+  else { gl.bindFramebuffer(gl.FRAMEBUFFER, null); gl.viewport(0, 0, canvas.width, canvas.height); }
+  gl.drawArrays(gl.TRIANGLES, 0, 3);
+}
+let cur = null;
+function use(prog) { cur = prog; gl.useProgram(prog.p); }
+function tex(name, t, unit) { gl.activeTexture(gl.TEXTURE0 + unit); gl.bindTexture(gl.TEXTURE_2D, t.tex || t); gl.uniform1i(cur.u[name], unit); }
+const f1 = (name, v) => gl.uniform1f(cur.u[name], v);
+const f2 = (name, a, b) => gl.uniform2f(cur.u[name], a, b);
+
+const dataTex = gl.createTexture();
+gl.bindTexture(gl.TEXTURE_2D, dataTex);
+gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA16F, N, 1, 0, gl.RGBA, gl.FLOAT, dataTexBuf);
+
+let vel, dye, curlT, divT, pres, scene, bloom = [], aspect = 1, simTime = 0, bootT = 0;
+function resize() {
+  const cw = canvas.clientWidth || innerWidth, ch = canvas.clientHeight || innerHeight;
+  let dpr = Math.min(window.devicePixelRatio || 1, 1.5);
+  if (ch * dpr > 1300) dpr = 1300 / ch;
+  const W = Math.max(2, Math.round(cw * dpr)), Hh = Math.max(2, Math.round(ch * dpr));
+  if (canvas.width === W && canvas.height === Hh && vel) return;
+  canvas.width = W; canvas.height = Hh; aspect = W / Hh;
+  for (const g of garbage) { gl.deleteTexture(g.tex); gl.deleteFramebuffer(g.fbo); }
+  garbage = [];
+  const vh = 176, vw = Math.max(16, Math.round(vh * aspect));
+  const dh = Math.min(768, Hh), dw = Math.max(16, Math.round(dh * aspect));
+  vel = double(vw, vh, gl.LINEAR); pres = double(vw, vh, gl.NEAREST);
+  curlT = target(vw, vh, gl.NEAREST); divT = target(vw, vh, gl.NEAREST);
+  dye = double(dw, dh, gl.LINEAR);
+  scene = target(W, Hh, gl.LINEAR);
+  bloom = [];
+  let bw = W >> 1, bh = Hh >> 1;
+  for (let i = 0; i < 6 && bw > 8 && bh > 8; i++) { bloom.push(target(bw, bh, gl.LINEAR)); bw >>= 1; bh >>= 1; }
+  bootT = 0;
+}
+addEventListener('resize', resize);
+resize();
+
+/* =====================================================================
+   4. TRADES -> SHOCKWAVES AND CAVITIES
+   ===================================================================== */
+const shocks = [];
+const shockBuf = new Float32Array(24);
+const labels = document.getElementById('labels');
+const clamp = (x, a, b) => Math.max(a, Math.min(b, x));
+const fmtUSD = (v) => v >= 1e9 ? '$' + (v / 1e9).toFixed(2) + 'B' : v >= 1e6 ? '$' + (v / 1e6).toFixed(2) + 'M' : v >= 1e3 ? '$' + (v / 1e3).toFixed(0) + 'K' : '$' + v.toFixed(0);
+
+function setCommon() {
+  tex('uData', dataTex, 7); f1('uGap', S.gap); f1('uAspect', aspect); f1('uTime', simTime);
+}
+function applyTrade(t) {
+  if (t.usd < 1500) return;
+  const whale = t.usd >= 1e5;                     // $100k+ in one sweep
+  const R = clamp(0.034 * Math.pow(t.usd / 1e5, 0.36), 0.008, 0.2) * clamp(aspect / 1.4, 0.5, 1);
+  const hitAsks = t.side === 'buy';               // taker buy consumes ask liquidity
+  const dir = hitAsks ? 1 : -1;
+  const frontX = 0.5 + smOff[0] + dir * S.gap * 0.5;
+  const py = 0.5 + (Math.random() - 0.5) * (whale ? 0.02 : 0.07);
+  const px = frontX + dir * R * 0.55 / aspect;
+
+  use(P.cavity); tex('uTex', dye.read, 0); f2('uPoint', px, py); f1('uRadius', R); f1('uSide', hitAsks ? 1 : 0);
+  f1('uHeat', whale ? 1.1 : 0.25); f1('uAspect', aspect); draw(dye.write); dye.swap();
+
+  use(P.burst); tex('uTex', vel.read, 0); f2('uPoint', px, py); f1('uRadius', R * 1.4);
+  f1('uStrength', (whale ? 520 : 200) * Math.sqrt(R / 0.034)); f1('uDirBias', dir * 0.9); f1('uAspect', aspect);
+  draw(vel.write); vel.swap();
+
+  if (whale) {
+    if (shocks.length >= 6) shocks.shift();
+    shocks.push({ x: frontX, y: py, r: R * 0.5, i: Math.min(1.2, 0.7 + R * 2.5), speed: 0.32 + R * 1.2 });
+  }
+  if (whale) {
+    S.energy = Math.min(1.5, S.energy + 0.35 + R * 3);
+    const el = document.createElement('div');
+    el.className = 'whale'; el.style.left = (px * 100) + '%'; el.style.top = ((1 - py) * 100 + (Math.random() - 0.5) * 14) + '%';
+    el.style.color = hitAsks ? 'var(--bid)' : 'var(--ask)';
+    el.innerHTML = (hitAsks ? '▲ BUY ' : '▼ SELL ') + fmtUSD(t.usd) + '<small>' + t.size.toFixed(2) + ' BTC</small>';
+    labels.appendChild(el); setTimeout(() => el.remove(), 2700);
+  }
+}
+
+/* =====================================================================
+   4b. EXPLANATIONS: intro panel, element tooltips, fluid inspector
+   ===================================================================== */
+const TXT = {
+  en: {
+    what: 'What is this', hintTouch: 'tap anything for an explanation · drag to stir', palNote: '<p>Click or press P for the next palette.</p>', hint: 'rest the pointer on anything for an explanation · drag to stir · ? about · H hide',
+    tips: {
+      title: ['Liquidity Collider', 'The live Coinbase BTC-USD order book drawn as two fluids. Each side is grouped into 64 price tiers, each one basis point (0.01%) wide, counted outward from the mid price.'],
+      mid: ['Mid price', 'Halfway between the best bid and the best ask. Every tier on screen is measured from this price, so the whole picture re-centres as it moves.'],
+      spread: ['Spread', 'Best ask minus best bid, in basis points and dollars. It sets the width of the dark gap between the two fluids. The mapping is logarithmic: BTC-USD usually quotes one cent wide, and a large sweep opens the gap visibly for a moment.'],
+      feed: ['Data source', 'Green: live Coinbase Exchange WebSocket (level2_batch and matches channels). Purple: the socket is unreachable and a seeded synthetic order book is running instead. The app retries the live feed every 20 seconds.'],
+      ping: ['Ping', 'Round-trip time to Coinbase: the delay between a subscribe message and its acknowledgement, best of the last five. It tells you how fresh the picture is; it does not change the simulation.'],
+      tps: ['Throughput', 'Order book changes and trades received per second. More updates mean the tier values, and so the fluid densities, change more often.'],
+      tape: ['Tape', 'Dollar volume traded per second, smoothed over about 1.5 seconds. The arrow shows whether buyers or sellers are the aggressors. Higher tape volume increases turbulence in both fluids.'],
+      fps: ['Render rate', 'Frames per second of the GPU fluid solver (Navier–Stokes on a grid) and the post-processing. The target is 60.'],
+      bids: ['Bid depth within 1%', 'Total dollar value of buy orders priced no more than 1% below the mid. This is the left fluid.'],
+      asks: ['Ask depth within 1%', 'Total dollar value of sell orders priced no more than 1% above the mid. This is the right fluid.'],
+      ratio: ['1% depth ratio', 'Share of bid versus ask liquidity within 1% of the mid. The heavier side pushes the meeting line toward the lighter one, so an ask-heavy book moves the front to the left.'],
+      touch: ['Touch', 'The vertical centre of the screen is the best price on each side. Moving up or down from here goes deeper into the book, one basis point per tier. Trades execute at the touch, so cavities and shockwaves start here.']
+    },
+    insp: {
+      bid: 'Bids', ask: 'Asks', gap: 'Spread gap', below: 'below mid', above: 'above mid', band: 'Price band', liq: 'Resting liquidity',
+      avg: '× the average tier', sp: 'Spread now',
+      bidT: 'Buy orders in this price band. The more money rests here, the brighter the fluid on this row and the harder it flows toward the centre.',
+      askT: 'Sell orders in this price band. The more money rests here, the brighter the fluid on this row and the harder it flows toward the centre.',
+      gapT: 'The empty space between the best bid and the best ask. Its width follows the spread on a log scale. It widens away from the centre because deeper tiers on the two sides are further apart in price.',
+      touchT: ' This row is next to the touch: trades land here and carve cavities into the side they consume.',
+      thin: ' This tier is thin right now, so the row is dark.', thick: ' This tier is heavy right now, so the row glows.'
+    },
+    about: {
+      eyebrow: 'Liquidity Collider', h: 'What is this?',
+      lead: 'The Coinbase BTC-USD order book, live, drawn as two fluids pressing against each other. Buy orders flow in from the left, sell orders from the right. Everything that moves is a physics simulation computed from the order book. Nothing is pre-rendered.',
+      read: 'How to read it',
+      items: [
+        ['var(--bid)', 'Left fluid: bids', 'Buy orders. The brighter a row, the more money is waiting at that price.'],
+        ['var(--ask)', 'Right fluid: asks', 'Sell orders, with the same rule: brightness is liquidity.'],
+        ['#ffffff', 'Vertical axis', 'The centre line is the best price. Up and down both mean further from the mid, one basis point per tier, 64 tiers. The picture is mirrored top to bottom.'],
+        ['#141a2c', 'Dark gap in the middle', 'The bid-ask spread. Usually one cent, so the fronts almost touch. A large sweep opens it.'],
+        ['#9aa7c7', 'Where the fronts meet', 'The side with more liquidity pushes the boundary toward the weaker side.'],
+        ['#05070c', 'Cavities', 'A trade consumes liquidity and carves a bubble into that side. It closes as new orders refill the book.'],
+        ['#ffe9c9', 'Shockwaves', 'A sweep above $100,000 sends out a ring and gets a label with its direction and size.'],
+        ['#7c8aff', 'Turbulence', 'The more dollar volume trades per second, the more both fluids churn.']
+      ],
+      ctl: 'Controls',
+      keys: [['rest pointer', 'explanation of whatever is under it'], ['drag', 'stir the fluid (visual only, the data is unaffected)'], ['?', 'this panel'], ['P', 'next colour palette'], ['I', 'fluid inspector on / off'], ['H', 'hide all text'], ['M', 'live / synthetic'], ['W', 'whale trade (synthetic mode)']],
+      foot: 'Data: Coinbase Exchange public WebSocket. If it cannot be reached, a deterministic synthetic order book runs instead, marked in purple at the top right.',
+      close: 'Close', lang: 'Magyar'
+    }
+  },
+  hu: {
+    what: 'Mi ez', hintTouch: 'koppints bármire a magyarázatért · húzással kavarhatsz', palNote: '<p>Kattints vagy nyomd meg a P-t a következő palettához.</p>', hint: 'állítsd meg az egeret bármin a magyarázatért · húzással kavarhatsz · ? leírás · H elrejt',
+    tips: {
+      title: ['Liquidity Collider', 'A Coinbase BTC-USD élő ajánlati könyve két folyadékként. Mindkét oldal 64 ársávra van bontva; egy sáv egy bázispont (0,01%) széles, a középártól kifelé számolva.'],
+      mid: ['Középár (mid)', 'A legjobb vételi és a legjobb eladási ár átlaga. A képernyőn minden sáv ehhez az árhoz képest értendő, ezért az egész kép vele együtt mozog.'],
+      spread: ['Spread', 'A legjobb eladási és a legjobb vételi ár különbsége, bázispontban és dollárban. Ez adja a két folyadék közti sötét rés szélességét. A leképezés logaritmikus: a BTC-USD spreadje többnyire egy cent, egy nagy söprés viszont rövid időre láthatóan szétnyitja a rést.'],
+      feed: ['Adatforrás', 'Zöld: élő Coinbase Exchange WebSocket (level2_batch és matches csatorna). Lila: a kapcsolat nem érhető el, helyette egy rögzített magból generált szintetikus ajánlati könyv fut. Az app 20 másodpercenként újrapróbálja az élő kapcsolatot.'],
+      ping: ['Ping', 'Oda-vissza út ideje a Coinbase-hez: egy feliratkozó üzenet és a nyugtája közti késés, az utolsó öt mérés legjobbja. Azt mutatja, mennyire friss a kép; a szimulációt nem befolyásolja.'],
+      tps: ['Átbocsátás', 'Másodpercenként beérkező könyvmódosítások és kötések száma. Több frissítésnél a sávok értéke, és ezzel a folyadék sűrűsége is gyakrabban változik.'],
+      tape: ['Forgalom (tape)', 'Másodpercenként lekötött dollárérték, kb. 1,5 másodpercre simítva. A nyíl azt mutatja, hogy a vevők vagy az eladók a kezdeményezők. Nagyobb forgalomnál mindkét folyadék erősebben örvénylik.'],
+      fps: ['Képfrissítés', 'A GPU-n futó folyadékszimuláció (Navier–Stokes rácson) és az utófeldolgozás képkockái másodpercenként. A cél 60.'],
+      bids: ['Vételi mélység 1%-on belül', 'A középárnál legfeljebb 1%-kal olcsóbb vételi ajánlatok összértéke dollárban. Ez a bal oldali folyadék.'],
+      asks: ['Eladási mélység 1%-on belül', 'A középárnál legfeljebb 1%-kal drágább eladási ajánlatok összértéke dollárban. Ez a jobb oldali folyadék.'],
+      ratio: ['1%-os mélységarány', 'A vételi és az eladási likviditás aránya a középár 1%-os környezetében. A nehezebb oldal a gyengébb felé tolja a találkozási vonalat, vagyis eladási túlsúlynál a front balra húzódik.'],
+      touch: ['Touch (legjobb ár)', 'A képernyő függőleges közepe mindkét oldalon a legjobb ár. Innen felfelé és lefelé haladva egyre mélyebbre jutsz a könyvben, sávonként egy bázisponttal. A kötések a legjobb áron teljesülnek, ezért az üregek és a lökéshullámok innen indulnak.']
+    },
+    insp: {
+      bid: 'Vételi oldal', ask: 'Eladási oldal', gap: 'Spread-rés', below: 'a középár alatt', above: 'a középár felett', band: 'Ársáv', liq: 'Itt álló likviditás',
+      avg: '× az átlagos sáv', sp: 'Spread most',
+      bidT: 'Vételi ajánlatok ebben az ársávban. Minél több pénz áll itt, annál fényesebb ebben a sorban a folyadék, és annál erősebben áramlik középre.',
+      askT: 'Eladási ajánlatok ebben az ársávban. Minél több pénz áll itt, annál fényesebb ebben a sorban a folyadék, és annál erősebben áramlik középre.',
+      gapT: 'Az üres tér a legjobb vételi és a legjobb eladási ár között. Szélessége logaritmikusan követi a spreadet. A középtől távolodva azért szélesedik, mert a mélyebb sávokban a két oldal árai is távolabb vannak egymástól.',
+      touchT: ' Ez a sor a legjobb ár mellett van: a kötések itt csapódnak be, és üreget vájnak abba az oldalba, amelyet fogyasztanak.',
+      thin: ' Ez a sáv most vékony, ezért sötét a sor.', thick: ' Ez a sáv most vastag, ezért világít a sor.'
+    },
+    about: {
+      eyebrow: 'Liquidity Collider', h: 'Mi ez?',
+      lead: 'A Coinbase BTC-USD ajánlati könyve élőben, két egymásnak feszülő folyadékként. Balról a vételi, jobbról az eladási ajánlatok áramlanak középre. Minden, ami mozog, az ajánlati könyvből számolt fizikai szimuláció. Semmi sincs előre renderelve.',
+      read: 'Hogyan olvasd',
+      items: [
+        ['var(--bid)', 'Bal oldali folyadék: vételi ajánlatok', 'Minél fényesebb egy sor, annál több pénz várakozik azon az áron.'],
+        ['var(--ask)', 'Jobb oldali folyadék: eladási ajánlatok', 'Ugyanaz a szabály: a fényesség a likviditás.'],
+        ['#ffffff', 'Függőleges tengely', 'A középvonal a legjobb ár. Felfelé és lefelé is a középártól távolodsz, sávonként egy bázisponttal, 64 sávon át. A kép függőlegesen tükrözött.'],
+        ['#141a2c', 'Sötét rés középen', 'A vételi és eladási ár közti spread. Többnyire egy cent, ezért a két front szinte összeér. Egy nagy söprés szétnyitja.'],
+        ['#9aa7c7', 'Hol találkozik a két front', 'Amelyik oldalon több a likviditás, az a gyengébb oldal felé tolja a határt.'],
+        ['#05070c', 'Üregek', 'Egy kötés likviditást fogyaszt, és buborékot váj az adott oldalba. Akkor záródik, amikor új ajánlatok töltik vissza a könyvet.'],
+        ['#ffe9c9', 'Lökéshullámok', 'A 100 000 dollár feletti söprés gyűrűt indít, és feliratot kap az irányával és a méretével.'],
+        ['#7c8aff', 'Örvénylés', 'Minél nagyobb a másodpercenkénti forgalom, annál erősebben kavarog mindkét folyadék.']
+      ],
+      ctl: 'Kezelés',
+      keys: [['megálló egér', 'magyarázat arról, ami alatta van'], ['húzás', 'a folyadék kavarása (csak látvány, az adatot nem érinti)'], ['?', 'ez a leírás'], ['P', 'következő színpaletta'], ['I', 'folyadék-vizsgáló be / ki'], ['H', 'minden felirat elrejtése'], ['M', 'élő / szintetikus'], ['W', 'bálna-kötés (szintetikus módban)']],
+      foot: 'Adat: a Coinbase Exchange nyilvános WebSocketje. Ha nem érhető el, determinisztikus szintetikus ajánlati könyv fut helyette; ezt lila jelzés mutatja jobbra fent.',
+      close: 'Bezár', lang: 'English'
+    }
+  }
+};
+let lang = 'en';
+try { lang = localStorage.getItem('lc-lang') || ((navigator.language || 'en').toLowerCase().startsWith('hu') ? 'hu' : 'en'); } catch (e) {}
+if (params.get('lang')) lang = params.get('lang') === 'hu' ? 'hu' : 'en';
+const L = () => TXT[lang];
+const COARSE = !!(window.matchMedia && matchMedia('(pointer: coarse)').matches);
+
+const tipEl = document.getElementById('tip'), aboutEl = document.getElementById('about'), aboutCard = document.getElementById('aboutcard');
+let tipMode = null, hover = null, inspector = true, tipHtml = '', tipAt = null;
+const DWELL = 600;   // ms the pointer must rest on the fluid before the inspector appears
+function placeTip(x, y, anchor) {
+  const w = tipEl.offsetWidth, h = tipEl.offsetHeight, m = 12;
+  if (anchor) {                                    // next to an element: below it in the top half, above it otherwise
+    x = anchor.right > innerWidth * 0.6 ? anchor.right - w : anchor.left;
+    y = anchor.top < innerHeight * 0.5 ? anchor.bottom + 10 : anchor.top - h - 10;
+  } else {                                         // next to the pointer, flipped near the edges
+    x = x + 20 + w > innerWidth - m ? x - 20 - w : x + 20;
+    y = y + 20 + h > innerHeight - m ? y - 14 - h : y + 20;
+  }
+  tipEl.style.transform = 'translate(' + Math.round(clamp(x, m, innerWidth - w - m)) + 'px,' + Math.round(clamp(y, m, innerHeight - h - m)) + 'px)';
+}
+function hideTip() { tipMode = null; tipAt = null; tipEl.classList.remove('on'); }
+let lastPointer = 'mouse';
+document.addEventListener('pointerdown', (e) => { lastPointer = e.pointerType; }, true);
+function showElTip(t) {
+  const d = t.dataset.tip === 'palette' ? [PALETTES[palIdx].name, PALETTES[palIdx][lang] + L().palNote] : L().tips[t.dataset.tip]; if (!d) return;
+  tipMode = 'el'; tipAt = null; tipHtml = ''; hover = null; tipEl.innerHTML = '<h4>' + d[0] + '</h4>' + d[1];
+  placeTip(0, 0, t.getBoundingClientRect()); tipEl.classList.add('on');
+}
+document.addEventListener('mouseover', (e) => { const t = e.target.closest && e.target.closest('[data-tip]'); if (t) showElTip(t); });
+document.addEventListener('click', (e) => {          // touch screens have no hover: a tap shows the explanation
+  const t = e.target.closest && e.target.closest('[data-tip]');
+  if (t && t.tagName !== 'BUTTON') showElTip(t); else if (tipMode === 'el') hideTip();
+});
+document.addEventListener('mouseout', (e) => {
+  const t = e.target.closest && e.target.closest('[data-tip]');
+  if (t && !t.contains(e.relatedTarget) && tipMode === 'el' && lastPointer !== 'touch') hideTip();
+});
+
+// Fluid inspector: reads the same tier data that drives the shaders, at the pointer position.
+function inspect() {
+  if (!hover || performance.now() - hover.t < DWELL || !inspector || !S.got || tipMode === 'el' || aboutEl.classList.contains('on') || document.body.classList.contains('nohud')) {
+    if (tipMode === 'fluid') hideTip(); return;
+  }
+  const I = L().insp, u = hover.x / innerWidth, v = 1 - hover.y / innerHeight;
+  const t = Math.abs(v - 0.5) * 2, i = Math.min(N - 1, Math.floor(t * N));
+  const c = 0.5 + smOff[i], g = S.gap * 0.5 + 0.03 * t * t;
+  const zone = u < c - g ? 'bid' : u > c + g ? 'ask' : 'gap';
+  const px = (n) => '$' + n.toLocaleString('en-US', { maximumFractionDigits: 0 });
+  let html;
+  if (zone === 'gap') {
+    const bps = S.spread / S.mid * 1e4;
+    html = '<h4><i style="background:#2a3350"></i>' + I.gap + '</h4>' +
+      '<div class="kv"><span>' + I.sp + '</span><b>$' + S.spread.toFixed(2) + ' · ' + (bps < 0.1 ? bps.toFixed(4) : bps.toFixed(2)) + ' bp</b></div><p>' + I.gapT + '</p>';
+  } else {
+    const isBid = zone === 'bid', liq = isBid ? rawB[i] : rawA[i], rel = S.vref > 0 ? liq / S.vref : 1;
+    const w = S.mid * 1e-4, p0 = isBid ? S.mid - (i + 1) * w : S.mid + i * w;
+    html = '<h4><i style="background:' + (isBid ? 'var(--bid)' : 'var(--ask)') + '"></i>' + (isBid ? I.bid : I.ask) + ' · ' + i + '–' + (i + 1) + ' bp ' + (isBid ? I.below : I.above) + '</h4>' +
+      '<div class="kv"><span>' + I.band + '</span><b>' + px(p0) + ' – ' + px(p0 + w) + '</b></div>' +
+      '<div class="kv"><span>' + I.liq + '</span><b>' + fmtUSD(liq) + ' · ' + rel.toFixed(1) + I.avg + '</b></div>' +
+      '<p>' + (isBid ? I.bidT : I.askT) + (rel < 0.4 ? I.thin : rel > 1.8 ? I.thick : '') + (i < 2 ? I.touchT : '') + '</p>';
+  }
+  if (html !== tipHtml) { tipHtml = html; tipEl.innerHTML = html; }
+  if (!tipAt) { tipAt = { x: hover.x, y: hover.y }; placeTip(hover.x, hover.y, null); }   // placed once, never follows the pointer
+  tipMode = 'fluid'; tipEl.classList.add('on');
+}
+setInterval(inspect, 200);
+
+function renderAbout() {
+  const A = L().about;
+  aboutCard.innerHTML = '<div class="top"><button id="ablang">' + A.lang + '</button><button id="abclose">' + A.close + ' ✕</button></div>' +
+    '<div class="eyebrow">' + A.eyebrow + '</div><h2>' + A.h + '</h2><div class="lead">' + A.lead + '</div>' +
+    '<h3>' + A.read + '</h3><ul>' + A.items.map((r) => '<li><i style="background:' + r[0] + ';box-shadow:0 0 0 1px rgba(255,255,255,.25)"></i><span><b>' + r[1] + '</b>' + r[2] + '</span></li>').join('') + '</ul>' +
+    '<h3>' + A.ctl + '</h3><div class="keys">' + A.keys.map((k) => '<span><kbd>' + k[0] + '</kbd>' + k[1] + '</span>').join('') + '</div>' +
+    '<div class="foot">' + A.foot + '</div>';
+  document.getElementById('abclose').onclick = () => toggleAbout(false);
+  document.getElementById('ablang').onclick = () => { lang = lang === 'hu' ? 'en' : 'hu'; try { localStorage.setItem('lc-lang', lang); } catch (e) {} applyLang(); };
+}
+function applyLang() {
+  document.getElementById('whatlbl').textContent = L().what;
+  document.getElementById('hint').textContent = COARSE ? L().hintTouch : L().hint;
+  renderAbout();
+}
+function toggleAbout(on) {
+  on = on === undefined ? !aboutEl.classList.contains('on') : on;
+  aboutEl.classList.toggle('on', on); if (on) hideTip();
+  try { localStorage.setItem('lc-seen', '1'); } catch (e) {}
+}
+document.getElementById('what').onclick = () => toggleAbout(true);
+aboutEl.addEventListener('click', (e) => { if (e.target === aboutEl) toggleAbout(false); });
+applyLang();
+let seen = false; try { seen = !!localStorage.getItem('lc-seen'); } catch (e) {}
+if ((!seen && !params.has('nointro')) || params.has('about')) setTimeout(() => toggleAbout(true), 1800);
+
+/* ---------- colour palettes: four stops per side (deep, body, bright, hot) ---------- */
+const PALETTES = [
+  { name: 'Ocean / Lava', hud: ['#58d0ff', '#ff9a52'],
+    bid: [0,.01,.07, 0,.10,.62, 0,.55,1, .55,.97,1], ask: [.07,0,.015, .60,.01,.07, 1,.34,.03, 1,.85,.45],
+    en: 'Blue against red, both shifting toward cyan and amber where liquidity is high. Strong warm–cool contrast. Saturated blue and red focus at different depths in the eye, which gives a slight 3D effect but can tire the eyes.',
+    hu: 'Kék a vörös ellen, a sűrű sávokban ciánba, illetve borostyánba hajlik. Erős hideg–meleg kontraszt. A telített kék és vörös a szemben más mélységben fókuszál, ami enyhe térhatást ad, de fárasztó lehet.' },
+  { name: 'Teal / Orange', hud: ['#4fe3d8', '#ffa040'],
+    bid: [0,.03,.04, 0,.30,.36, 0,.80,.78, .65,1,.95], ask: [.06,.015,0, .55,.17,0, 1,.50,.02, 1,.88,.55],
+    en: 'The film-grading pair: orange against its cool opposite. Both colours lie along the blue–yellow axis of human vision, which red–green colour blindness leaves intact. The two sides are similar in brightness, so the contrast is carried by hue alone.',
+    hu: 'A filmes színkorrekció bevált párja: narancs a hideg ellentétével szemben. Mindkét szín a látás kék–sárga tengelye mentén fekszik, amelyet a vörös–zöld színtévesztés nem érint. A két oldal világossága hasonló, ezért a kontrasztot csak az árnyalat adja.' },
+  { name: 'Violet / Gold', hud: ['#b79bff', '#ffd24a'],
+    bid: [.02,0,.07, .22,.05,.70, .55,.35,1, .88,.80,1], ask: [.06,.03,0, .50,.30,0, 1,.75,.05, 1,.95,.65],
+    en: 'Complementary hues with the largest brightness difference of any pair: yellow is the lightest saturated colour, violet the darkest. The two sides differ in lightness as well as hue, so they stay distinct for both red–green types of colour blindness.',
+    hu: 'Komplementer árnyalatok a lehető legnagyobb világosságkülönbséggel: a sárga a legvilágosabb telített szín, az ibolya a legsötétebb. A két oldal világosságban is eltér, nem csak árnyalatban, így a vörös–zöld színtévesztés mindkét típusa mellett megkülönböztethető.' },
+  { name: 'Emerald / Magenta', hud: ['#4dffa0', '#ff6fd0'],
+    bid: [0,.035,.02, 0,.36,.20, .05,.92,.50, .75,1,.85], ask: [.05,0,.04, .50,0,.36, 1,.15,.70, 1,.75,.95],
+    en: 'Green and magenta are exact complements in additive light: together they make white. This is the widest hue gap of the five palettes. Keeps the "green is buying" convention. Clearly better than green–red for protan colour blindness, only slightly better for the more common deutan type.',
+    hu: 'A zöld és a magenta az additív fénykeverésben pontos komplementerek: együtt fehéret adnak. Az öt paletta közül itt a legnagyobb az árnyalatkülönbség. Megtartja a „zöld a vétel" konvenciót. Protán színtévesztésnél egyértelműen jobb a zöld–vörösnél, a gyakoribb deután típusnál csak kicsivel.' },
+  { name: 'Green / Red (classic)', hud: ['#5dff7a', '#ff6b5e'],
+    bid: [0,.035,.01, .02,.38,.08, .15,.92,.25, .8,1,.75], ask: [.07,0,.01, .60,.02,.05, 1,.22,.12, 1,.8,.6],
+    en: 'The trading-screen convention. Included for familiarity, not recommended: about 8% of men cannot reliably tell these two apart, and the pair has little brightness difference to fall back on.',
+    hu: 'A kereskedési képernyők megszokott párja. Az ismerősség kedvéért szerepel, nem ajánlott: a férfiak nagyjából 8%-a nem tudja megbízhatóan megkülönböztetni a kettőt, és világosságban is alig térnek el.' }
+];
+let palIdx = 0;
+try { palIdx = +localStorage.getItem('lc-pal') || 0; } catch (e) {}
+if (params.get('pal')) palIdx = +params.get('pal') || 0;
+let PAL;
+function setPalette(i) {
+  palIdx = ((i % PALETTES.length) + PALETTES.length) % PALETTES.length;
+  const p = PALETTES[palIdx];
+  PAL = { bid: new Float32Array(p.bid), ask: new Float32Array(p.ask) };
+  document.documentElement.style.setProperty('--bid', p.hud[0]);
+  document.documentElement.style.setProperty('--ask', p.hud[1]);
+  const el = document.getElementById('palname'); if (el) el.textContent = p.name;
+  try { localStorage.setItem('lc-pal', palIdx); } catch (e) {}
+}
+setPalette(palIdx);
+document.getElementById('pal').onclick = () => { setPalette(palIdx + 1); hideTip(); };
+
+/* pointer stirring */
+let ptr = null;
+canvas.addEventListener('pointermove', (e) => {
+  const x = e.clientX / innerWidth, y = 1 - e.clientY / innerHeight;
+  if (ptr) { ptr.dx += x - ptr.x; ptr.dy += y - ptr.y; ptr.x = x; ptr.y = y; ptr.down = e.buttons > 0 || e.pointerType === 'touch'; }
+  else ptr = { x, y, dx: 0, dy: 0, down: false };
+  hover = e.buttons > 0 || e.pointerType === 'touch' ? null : { x: e.clientX, y: e.clientY, t: performance.now() };
+  if (tipMode === 'fluid' && (!hover || !tipAt || Math.hypot(hover.x - tipAt.x, hover.y - tipAt.y) > 8)) hideTip();
+});
+let tapStart = null;
+canvas.addEventListener('pointerdown', (e) => { hover = null; inspect(); tapStart = { x: e.clientX, y: e.clientY, t: performance.now() }; });
+canvas.addEventListener('pointerup', (e) => {       // a short tap pins the inspector at that point
+  if (tapStart && performance.now() - tapStart.t < 400 && Math.hypot(e.clientX - tapStart.x, e.clientY - tapStart.y) < 10) {
+    hover = { x: e.clientX, y: e.clientY, t: -1e9, pinned: true }; tipAt = null; inspect();
+  }
+  tapStart = null;
+});
+canvas.addEventListener('pointercancel', () => { ptr = null; tapStart = null; });
+canvas.addEventListener('pointerleave', (e) => { ptr = null; if (hover && hover.pinned && e.pointerType === 'touch') return; hover = null; inspect(); });
+addEventListener('keydown', (e) => {
+  const k = e.key.toLowerCase();
+  if (k === '?' || k === '/') toggleAbout();
+  else if (k === 'escape') toggleAbout(false);
+  else if (k === 'p') setPalette(palIdx + (e.shiftKey ? -1 : 1));
+  else if (k === 'i') { inspector = !inspector; inspect(); }
+  else if (k === 'h') { document.body.classList.toggle('nohud'); hideTip(); }
+  else if (k === 'w') sendCmd({ cmd: 'whale' });
+  else if (k === 'm') sendCmd({ cmd: 'toggle' });
+});
+
+/* =====================================================================
+   5. FRAME
+   ===================================================================== */
+function updateData(dt) {
+  let mean = 0;
+  for (let i = 0; i < N; i++) mean += rawB[i] + rawA[i];
+  mean /= 2 * N;
+  if (mean > 0) S.vref = S.vref > 0 ? S.vref + (mean - S.vref) * (1 - Math.exp(-dt * 0.5)) : mean;
+  const ref = S.vref * 1.1 + 1e-9, k = 1 - Math.exp(-dt * 9), ks = 1 - Math.exp(-dt * 2.5);
+  let cb = 0, ca = 0;
+  for (let i = 0; i < N; i++) {
+    smB[i] += (rawB[i] / (rawB[i] + ref) - smB[i]) * k;
+    smA[i] += (rawA[i] / (rawA[i] + ref) - smA[i]) * k;
+    cb += rawB[i]; ca += rawA[i];
+    // The heavier side pushes the front toward the lighter one (cumulative imbalance down to this tier).
+    smOff[i] += (0.11 * (cb - ca) / (cb + ca + 1e-9) - smOff[i]) * ks;
+    dataTexBuf[i * 4] = smB[i]; dataTexBuf[i * 4 + 1] = smA[i]; dataTexBuf[i * 4 + 2] = smOff[i];
+  }
+  gl.bindTexture(gl.TEXTURE_2D, dataTex);
+  gl.texSubImage2D(gl.TEXTURE_2D, 0, 0, 0, N, 1, gl.RGBA, gl.FLOAT, dataTexBuf);
+
+  // Spread -> gap width. Log scale: BTC-USD usually quotes ~0.001 bp wide, sweeps open it to several bp.
+  const bps = S.mid > 0 ? S.spread / S.mid * 1e4 : 0;
+  const gapT = clamp(0.007 + 0.036 * Math.log10(1 + 10 * bps), 0.007, 0.16);
+  S.gap += (gapT - S.gap) * (1 - Math.exp(-dt * 8));
+
+  S.momRef = S.momRef > 0 ? S.momRef + (S.mom - S.momRef) * (1 - Math.exp(-dt * 0.05)) : S.mom;
+  const mn = S.mom / (S.mom + S.momRef + 1);
+  S.turb += ((14 + 70 * mn) - S.turb) * (1 - Math.exp(-dt * 2));
+  S.energy *= Math.exp(-dt * 1.4);
+}
+
+function simulate(dt) {
+  gl.disable(gl.BLEND);
+  tradeQueue.sort((a, b) => b.usd - a.usd);
+  for (let i = 0; i < tradeQueue.length && i < 6; i++) applyTrade(tradeQueue[i]);
+  tradeQueue.length = 0;
+
+  for (let i = shocks.length - 1; i >= 0; i--) {
+    const s = shocks[i]; s.r += s.speed * dt; s.i *= Math.exp(-dt * 2.4);
+    if (s.i < 0.02) shocks.splice(i, 1);
+  }
+  shockBuf.fill(0);
+  shocks.forEach((s, i) => { shockBuf[i * 4] = s.x; shockBuf[i * 4 + 1] = s.y; shockBuf[i * 4 + 2] = s.r; shockBuf[i * 4 + 3] = s.i; });
+
+  if (ptr && (ptr.dx || ptr.dy)) {
+    const g = ptr.down ? 14 : 4;
+    use(P.splat); tex('uTex', vel.read, 0); f2('uPoint', ptr.x, ptr.y); f1('uRadius', 0.05); f1('uAspect', aspect);
+    gl.uniform3f(cur.u.uColor, clamp(ptr.dx * vel.w * g * 10, -900, 900), clamp(ptr.dy * vel.h * g * 10, -900, 900), 0);
+    draw(vel.write); vel.swap(); ptr.dx = ptr.dy = 0;
+  }
+
+  use(P.force); setCommon(); tex('uVel', vel.read, 0); f1('uDt', dt); f1('uForce', 150); f1('uTurb', S.turb);
+  gl.uniform4fv(cur.u.uShock, shockBuf); draw(vel.write); vel.swap();
+
+  use(P.curl); tex('uVel', vel.read, 0); f2('uTexel', vel.texel[0], vel.texel[1]); draw(curlT);
+  use(P.vorticity); tex('uVel', vel.read, 0); tex('uCurl', curlT, 1); f2('uTexel', vel.texel[0], vel.texel[1]);
+  f1('uDt', dt); f1('uCurlK', 24); draw(vel.write); vel.swap();
+
+  use(P.divergence); tex('uVel', vel.read, 0); f2('uTexel', vel.texel[0], vel.texel[1]); draw(divT);
+  use(P.copy); tex('uTex', pres.read, 0); f1('uValue', 0.8); draw(pres.write); pres.swap();
+  use(P.pressure); f2('uTexel', vel.texel[0], vel.texel[1]); tex('uDiv', divT, 1);
+  for (let i = 0; i < 18; i++) { tex('uP', pres.read, 0); draw(pres.write); pres.swap(); }
+  use(P.gradient); tex('uP', pres.read, 0); tex('uVel', vel.read, 1); f2('uTexel', vel.texel[0], vel.texel[1]);
+  draw(vel.write); vel.swap();
+
+  use(P.advect); f2('uTexel', vel.texel[0], vel.texel[1]); f1('uDt', dt);
+  tex('uVelocity', vel.read, 0); tex('uSource', vel.read, 0); f1('uDissipation', 0.2); draw(vel.write); vel.swap();
+  tex('uVelocity', vel.read, 0); tex('uSource', dye.read, 1); f1('uDissipation', 0.1); draw(dye.write); dye.swap();
+
+  use(P.dye); setCommon(); tex('uDye', dye.read, 0); f1('uDt', dt); f1('uBoost', bootT < 2 ? 3 : 0);
+  draw(dye.write); dye.swap();
+}
+
+function render() {
+  use(P.composite); setCommon(); tex('uDye', dye.read, 0); f2('uTexel', dye.texel[0], dye.texel[1]);
+  gl.uniform4fv(cur.u.uShock, shockBuf);
+  gl.uniform3fv(cur.u.uBid, PAL.bid); gl.uniform3fv(cur.u.uAsk, PAL.ask); draw(scene);
+
+  if (bloom.length) {
+    use(P.prefilter); tex('uTex', scene, 0); f1('uThreshold', 0.7); draw(bloom[0]);
+    use(P.blur);
+    for (let i = 1; i < bloom.length; i++) { tex('uTex', bloom[i - 1], 0); f2('uTexel', bloom[i - 1].texel[0], bloom[i - 1].texel[1]); draw(bloom[i]); }
+    gl.enable(gl.BLEND); gl.blendFunc(gl.ONE, gl.ONE);
+    for (let i = bloom.length - 1; i > 0; i--) { tex('uTex', bloom[i], 0); f2('uTexel', bloom[i].texel[0], bloom[i].texel[1]); draw(bloom[i - 1]); }
+    gl.disable(gl.BLEND);
+  }
+  use(P.final); tex('uScene', scene, 0); tex('uBloom', bloom[0] || scene, 1);
+  f1('uTime', simTime); f1('uCA', 0.012 * S.energy); f1('uBloomI', bloom.length ? 0.13 + 0.1 * S.energy : 0);
+  draw(null);
+}
+
+/* ---------- telemetry ---------- */
+const $ = (id) => document.getElementById(id);
+const el = { mid: $('mid'), spr: $('spr'), dot: $('dot'), feed: $('feed'), note: $('feednote'), rtt: $('rtt'), tps: $('tps'),
+             mom: $('mom'), fps: $('fps'), ib: $('ib'), ia: $('ia'), bar: $('barfill'), db: $('db'), da: $('da') };
+function hud() {
+  if (!S.got) return;
+  const whole = Math.floor(S.mid), frac = (S.mid - whole).toFixed(2).slice(1);
+  el.mid.innerHTML = whole.toLocaleString('en-US') + '<small>' + frac + '</small>';
+  const bps = S.spread / S.mid * 1e4;
+  el.spr.textContent = (bps < 0.1 ? bps.toFixed(4) : bps.toFixed(2)) + ' bps · $' + S.spread.toFixed(2);
+  el.dot.className = S.live ? 'live' : 'replay';
+  el.feed.textContent = S.live ? 'Live feed' : 'Synthetic replay';
+  el.note.textContent = S.live ? 'ws-feed.exchange.coinbase.com' : (S.connecting ? 'connecting to live feed…' : 'live feed unreachable · seeded book');
+  el.rtt.textContent = S.live && S.rtt >= 0 ? S.rtt.toFixed(0) + ' ms' : '—';
+  el.tps.textContent = Math.round(S.tps).toLocaleString('en-US') + ' ticks/s';
+  el.mom.textContent = fmtUSD(S.mom) + '/s ' + (S.momSigned >= 0 ? '▲' : '▼');
+  el.fps.textContent = S.fps.toFixed(0) + ' fps';
+  const tot = S.d1b + S.d1a || 1, pb = S.d1b / tot * 100;
+  el.ib.textContent = pb.toFixed(1) + '%'; el.ia.textContent = (100 - pb).toFixed(1) + '%';
+  el.bar.style.width = pb + '%';
+  el.db.textContent = fmtUSD(S.d1b) + ' within 1%'; el.da.textContent = fmtUSD(S.d1a) + ' within 1%';
+}
+setInterval(hud, 100);
+
+let last = performance.now();
+function frame(t) {
+  requestAnimationFrame(frame);
+  const real = (t - last) / 1000; last = t;
+  if (real > 0 && real < 1) S.fps += (1 / real - S.fps) * 0.05;
+  const dt = clamp(real, 1 / 120, 1 / 30);
+  simTime += dt; bootT += dt;
+  resize();
+  if (S.got) { updateData(dt); simulate(dt); }
+  render();
+}
+requestAnimationFrame(frame);
+</script>
+</body>
+</html>
