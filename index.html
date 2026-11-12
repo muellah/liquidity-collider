@@ -57,6 +57,18 @@
     text-shadow: 0 0 14px currentColor, 0 0 3px #000; animation: rise 2.6s cubic-bezier(.2,.7,.2,1) forwards; }
   .whale small { display: block; font-size: 9px; opacity: 0.7; text-align: center; }
   @keyframes rise { 0% { opacity: 0; margin-top: 0; } 12% { opacity: 1; } 70% { opacity: 1; } 100% { opacity: 0; margin-top: -90px; } }
+  body::after { transition: opacity 0.4s; }
+  body.paper::after { background:
+    radial-gradient(ellipse 48% 56% at 0% 0%, rgba(236,230,218,0.94) 30%, rgba(236,230,218,0) 100%),
+    radial-gradient(ellipse 38% 36% at 100% 0%, rgba(236,230,218,0.94) 30%, rgba(236,230,218,0) 100%),
+    linear-gradient(0deg, rgba(236,230,218,0.92) 0, rgba(236,230,218,0.6) 12%, rgba(236,230,218,0) 26%); }
+  body.paper .hud, body.paper .axis, body.paper #labels { --ink: #171a21; --dim: rgba(30,34,46,0.68); --faint: rgba(30,34,46,0.45); }
+  body.paper .hud { text-shadow: 0 0 10px rgba(238,232,220,0.95), 0 0 2px rgba(238,232,220,0.9); }
+  body.paper .mid { color: var(--ink); }
+  body.paper #what, body.paper #pal, body.paper #mat { background: rgba(20,24,32,0.05); border-color: rgba(20,24,32,0.38); }
+  body.paper #what i, body.paper #mat i { color: #ece6d8; }
+  body.paper #bar::after { background: rgba(20,24,32,0.6); }
+  body.paper .whale { text-shadow: 0 0 8px rgba(238,232,220,0.95), 0 0 2px rgba(238,232,220,0.9); }
   [data-tip] { pointer-events: auto; cursor: help; }
   #what, #pal, #mat { pointer-events: auto; cursor: pointer; margin-top: 12px; display: inline-flex; gap: 8px; align-items: center;
     font: inherit; letter-spacing: 0.2em; text-transform: uppercase; color: var(--ink); background: rgba(255,255,255,0.05);
@@ -486,9 +498,8 @@ float shockWarp(inout vec2 uv){ float ring = 0.0;
     float r = exp(-pow((dist-s.z)/w,2.0))*s.w;
     uv -= p/(dist+1e-4)*r*0.02*vec2(1.0/uAspect,1.0); ring += r; }
   return ring; }
-vec3 backdrop(float y){ float t = tierT(y)*64.0;
-  float tick = 1.0-smoothstep(0.0,0.07,abs(fract(t/8.0+0.5)-0.5)*8.0);
-  return vec3(0.006,0.009,0.018) + vec3(0.02,0.03,0.05)*tick*0.5; }
+float tickAt(float y){ float t = tierT(y)*64.0; return 1.0-smoothstep(0.0,0.07,abs(fract(t/8.0+0.5)-0.5)*8.0); }
+vec3 backdrop(float y){ return vec3(0.006,0.009,0.018) + vec3(0.02,0.03,0.05)*tickAt(y)*0.5; }
 `;
 
 const FS = {
@@ -546,7 +557,7 @@ void main(){ float L=texture(uP,vUv-vec2(uTexel.x,0)).x, R=texture(uP,vUv+vec2(u
   o = vec4(texture(uVel,vUv).xy - vec2(R-L,T-B),0,1); }`,
 
   // Dye channels: r = bid density, g = ask density, b = heat (annihilation / shock), a = cavity mask.
-  dye: HEAD + COMMON + `uniform sampler2D uDye; uniform float uDt, uBoost, uRelax, uPuff;
+  dye: HEAD + COMMON + `uniform sampler2D uDye; uniform float uDt, uBoost, uRelax, uPuff, uFine;
 void main(){
   vec4 c = texture(uDye,vUv); float b=c.r, a=c.g, h=c.b, cv=c.a; float x=vUv.x;
   vec4 d = tierData(vUv.y); vec2 f = fronts(vUv,d);
@@ -554,6 +565,9 @@ void main(){
   float inA = smoothstep(f.y-0.004, f.y+0.004, x);
   float sB = 0.15 + 2.4*pow(fbm(vec2(vUv.y*30.0, uTime*0.22)),1.6);
   float sA = 0.15 + 2.4*pow(fbm(vec2(vUv.y*30.0+57.0, uTime*0.22+9.0)),1.6);
+  // Fine strands: the inflow is concentrated into thin lines (0 = broad streaks).
+  sB = mix(sB, 0.10+9.0*pow(fbm(vec2(vUv.y*85.0, uTime*0.12)),3.0), uFine);
+  sA = mix(sA, 0.10+9.0*pow(fbm(vec2(vUv.y*85.0+57.0, uTime*0.12+9.0)),3.0), uFine);
   // Puffs: the inflow is released in bursts that differ from row to row (0 = steady stream).
   sB *= mix(1.0, 0.3+1.8*smoothstep(0.32,0.70,noise(vec2(vUv.y*6.0, uTime*0.8))), uPuff);
   sA *= mix(1.0, 0.3+1.8*smoothstep(0.32,0.70,noise(vec2(vUv.y*6.0+31.0, uTime*0.8+5.0))), uPuff);
@@ -638,6 +652,26 @@ void main(){
   o = vec4(col,1.0);
 }`,
 
+  // Scene, ink: light paper, and the fluid absorbs light instead of emitting it. Flat: no surface, no highlights.
+  composite_ink: HEAD + COMMON + SCENE + `
+void main(){
+  vec2 uv = vUv; float ring = shockWarp(uv);
+  vec4 c = texture(uDye,uv);
+  vec2 e = uTexel*1.5;
+  float hL=H(texture(uDye,uv-vec2(e.x,0))), hR=H(texture(uDye,uv+vec2(e.x,0))),
+        hB=H(texture(uDye,uv-vec2(0,e.y))), hT=H(texture(uDye,uv+vec2(0,e.y)));
+  float pool = min(length(vec2(hR-hL,hT-hB))*1.6, 1.2);       // ink gathers along the edges of a strand
+  float db = 4.2*pow(c.r,1.1), da = 4.2*pow(c.g,1.1);
+  vec3 absorb = ((vec3(1.0)-mix(uBid[1],uBid[2],0.6))*db + (vec3(1.0)-mix(uAsk[1],uAsk[2],0.6))*da)*(1.0+pool)
+              + vec3(0.05)*(db*db+da*da)                         // dense ink goes dark
+              + vec3(0.45,0.55,0.70)*c.b*1.4;                    // front and shock heat leave a sepia stain
+  vec3 paper = vec3(0.925,0.895,0.835)*(0.96+0.06*fbm(vUv*vec2(uAspect,1.0)*90.0));
+  paper *= 1.0-0.05*tickAt(uv.y);
+  vec3 col = paper*exp(-absorb);
+  col *= 1.0-0.28*min(ring,1.0);
+  o = vec4(col,1.0);
+}`,
+
   prefilter: HEAD + `uniform sampler2D uTex; uniform float uThreshold;
 void main(){ vec3 c = texture(uTex,vUv).rgb; float br = max(c.r,max(c.g,c.b));
   o = vec4(c*max(br-uThreshold,0.0)/(br+1e-4),1.0); }`,
@@ -648,7 +682,7 @@ void main(){ vec4 s = texture(uTex,vUv)*4.0;
   s += texture(uTex,vUv+uTexel*vec2(-1,1));  s += texture(uTex,vUv+uTexel*vec2(1,1));
   o = s/8.0; }`,
 
-  final: HEAD + `uniform sampler2D uScene, uBloom; uniform float uTime, uCA, uBloomI;
+  final: HEAD + `uniform sampler2D uScene, uBloom; uniform float uTime, uCA, uBloomI, uVig;
 vec3 aces(vec3 x){ return clamp((x*(2.51*x+0.03))/(x*(2.43*x+0.59)+0.14),0.0,1.0); }
 float hash(vec2 p){ p = fract(p*vec2(123.34,456.21)); p += dot(p,p+45.32); return fract(p.x*p.y); }
 void main(){
@@ -657,7 +691,7 @@ void main(){
   vec3 col = vec3(texture(uScene,vUv+off).r, texture(uScene,vUv).g, texture(uScene,vUv-off).b);
   vec3 bl = vec3(texture(uBloom,vUv+off*2.0).r, texture(uBloom,vUv).g, texture(uBloom,vUv-off*2.0).b);
   col += bl*uBloomI;
-  col *= 1.0 - 1.15*r2;
+  col *= 1.0 - uVig*r2;
   col = pow(aces(col*1.05), vec3(1.0/2.2));
   col += (hash(vUv*vec2(1917.0,1031.0)+fract(uTime)*71.0)-0.5)*0.022;
   o = vec4(col,1.0);
@@ -813,15 +847,18 @@ const TXT = {
       askT: 'Sell orders in this price band. The more money rests here, the brighter the fluid on this row and the harder it flows toward the centre.',
       gapT: 'The empty space between the best bid and the best ask. Its width follows the spread on a log scale. It widens away from the centre because deeper tiers on the two sides are further apart in price.',
       touchT: ' This row is next to the touch: trades land here and carve cavities into the side they consume.',
-      thin: ' This tier is thin right now, so the row is dark.', thick: ' This tier is heavy right now, so the row glows.'
+      thin: ' This tier is thin right now, so the row is dark.', thick: ' This tier is heavy right now, so the row glows.',
+      bidTp: 'Buy orders in this price band. The more money rests here, the darker the ink on this row and the harder it flows toward the centre.',
+      askTp: 'Sell orders in this price band. The more money rests here, the darker the ink on this row and the harder it flows toward the centre.',
+      thinP: ' This tier is thin right now, so the row is pale.', thickP: ' This tier is heavy right now, so the row is dark.'
     },
     about: {
       eyebrow: 'Liquidity Collider', h: 'What is this?',
       lead: 'The Coinbase BTC-USD order book, live, drawn as two fluids pressing against each other. Buy orders flow in from the left, sell orders from the right. Everything that moves is a physics simulation computed from the order book. Nothing is pre-rendered.',
       read: 'How to read it',
       items: [
-        ['var(--bid)', 'Left fluid: bids', 'Buy orders. The brighter a row, the more money is waiting at that price.'],
-        ['var(--ask)', 'Right fluid: asks', 'Sell orders, with the same rule: brightness is liquidity.'],
+        ['var(--bid)', 'Left fluid: bids', 'Buy orders. The stronger the colour of a row, the more money is waiting at that price: brighter on dark materials, darker on ink.'],
+        ['var(--ask)', 'Right fluid: asks', 'Sell orders, with the same rule: strength of colour is liquidity.'],
         ['#ffffff', 'Vertical axis', 'The centre line is the best price. Up and down both mean further from the mid, one basis point per tier, 64 tiers. The picture is mirrored top to bottom.'],
         ['#141a2c', 'Dark gap in the middle', 'The bid-ask spread. Usually one cent, so the fronts almost touch. A large sweep opens it.'],
         ['#9aa7c7', 'Where the fronts meet', 'The side with more liquidity pushes the boundary toward the weaker side.'],
@@ -858,15 +895,18 @@ const TXT = {
       askT: 'Eladási ajánlatok ebben az ársávban. Minél több pénz áll itt, annál fényesebb ebben a sorban a folyadék, és annál erősebben áramlik középre.',
       gapT: 'Az üres tér a legjobb vételi és a legjobb eladási ár között. Szélessége logaritmikusan követi a spreadet. A középtől távolodva azért szélesedik, mert a mélyebb sávokban a két oldal árai is távolabb vannak egymástól.',
       touchT: ' Ez a sor a legjobb ár mellett van: a kötések itt csapódnak be, és üreget vájnak abba az oldalba, amelyet fogyasztanak.',
-      thin: ' Ez a sáv most vékony, ezért sötét a sor.', thick: ' Ez a sáv most vastag, ezért világít a sor.'
+      thin: ' Ez a sáv most vékony, ezért sötét a sor.', thick: ' Ez a sáv most vastag, ezért világít a sor.',
+      bidTp: 'Vételi ajánlatok ebben az ársávban. Minél több pénz áll itt, annál sötétebb ebben a sorban a tinta, és annál erősebben áramlik középre.',
+      askTp: 'Eladási ajánlatok ebben az ársávban. Minél több pénz áll itt, annál sötétebb ebben a sorban a tinta, és annál erősebben áramlik középre.',
+      thinP: ' Ez a sáv most vékony, ezért halvány a sor.', thickP: ' Ez a sáv most vastag, ezért sötét a sor.'
     },
     about: {
       eyebrow: 'Liquidity Collider', h: 'Mi ez?',
       lead: 'A Coinbase BTC-USD ajánlati könyve élőben, két egymásnak feszülő folyadékként. Balról a vételi, jobbról az eladási ajánlatok áramlanak középre. Minden, ami mozog, az ajánlati könyvből számolt fizikai szimuláció. Semmi sincs előre renderelve.',
       read: 'Hogyan olvasd',
       items: [
-        ['var(--bid)', 'Bal oldali folyadék: vételi ajánlatok', 'Minél fényesebb egy sor, annál több pénz várakozik azon az áron.'],
-        ['var(--ask)', 'Jobb oldali folyadék: eladási ajánlatok', 'Ugyanaz a szabály: a fényesség a likviditás.'],
+        ['var(--bid)', 'Bal oldali folyadék: vételi ajánlatok', 'Minél erősebb egy sor színe, annál több pénz várakozik azon az áron: sötét anyagoknál fényesebb, tintánál sötétebb.'],
+        ['var(--ask)', 'Jobb oldali folyadék: eladási ajánlatok', 'Ugyanaz a szabály: a szín erőssége a likviditás.'],
         ['#ffffff', 'Függőleges tengely', 'A középvonal a legjobb ár. Felfelé és lefelé is a középártól távolodsz, sávonként egy bázisponttal, 64 sávon át. A kép függőlegesen tükrözött.'],
         ['#141a2c', 'Sötét rés középen', 'A vételi és eladási ár közti spread. Többnyire egy cent, ezért a két front szinte összeér. Egy nagy söprés szétnyitja.'],
         ['#9aa7c7', 'Hol találkozik a két front', 'Amelyik oldalon több a likviditás, az a gyengébb oldal felé tolja a határt.'],
@@ -949,7 +989,8 @@ function inspect() {
     html = '<h4><i style="background:' + (isBid ? 'var(--bid)' : 'var(--ask)') + '"></i>' + (isBid ? I.bid : I.ask) + ' · ' + i + '–' + (i + 1) + ' bp ' + (isBid ? I.below : I.above) + '</h4>' +
       '<div class="kv"><span>' + I.band + '</span><b>' + px(p0) + ' – ' + px(p0 + w) + '</b></div>' +
       '<div class="kv"><span>' + I.liq + '</span><b>' + fmtUSD(liq) + ' · ' + rel.toFixed(1) + I.avg + '</b></div>' +
-      '<p>' + (isBid ? I.bidT : I.askT) + (rel < 0.4 ? I.thin : rel > 1.8 ? I.thick : '') + (i < 2 ? I.touchT : '') + '</p>';
+      '<p>' + (MAT.paper ? (isBid ? I.bidTp : I.askTp) : (isBid ? I.bidT : I.askT)) +
+      (rel < 0.4 ? (MAT.paper ? I.thinP : I.thin) : rel > 1.8 ? (MAT.paper ? I.thickP : I.thick) : '') + (i < 2 ? I.touchT : '') + '</p>';
   }
   if (html !== tipHtml) { tipHtml = html; tipEl.innerHTML = html; }
   if (!tipAt) { tipAt = { x: hover.x, y: hover.y }; placeTip(hover.x, hover.y, null); }   // placed once, never follows the pointer
@@ -990,27 +1031,33 @@ if (params.has('about')) setTimeout(() => toggleAbout(true), 1800);
 
 /* ---------- colour palettes: four stops per side (deep, body, bright, hot) ---------- */
 const PALETTES = [
-  { name: 'Ocean / Lava', hud: ['#58d0ff', '#ff9a52'],
+  { name: 'Ocean / Lava', hud: ['#58d0ff', '#ff9a52'], ink: ['#0a62c9', '#c2350f'],
     bid: [0,.01,.07, 0,.10,.62, 0,.55,1, .55,.97,1], ask: [.07,0,.015, .60,.01,.07, 1,.34,.03, 1,.85,.45],
     en: 'Blue against red, both shifting toward cyan and amber where liquidity is high. Strong warm–cool contrast. Saturated blue and red focus at different depths in the eye, which gives a slight 3D effect but can tire the eyes.',
     hu: 'Kék a vörös ellen, a sűrű sávokban ciánba, illetve borostyánba hajlik. Erős hideg–meleg kontraszt. A telített kék és vörös a szemben más mélységben fókuszál, ami enyhe térhatást ad, de fárasztó lehet.' },
-  { name: 'Teal / Orange', hud: ['#4fe3d8', '#ffa040'],
+  { name: 'Teal / Orange', hud: ['#4fe3d8', '#ffa040'], ink: ['#0b8f88', '#c85f00'],
     bid: [0,.03,.04, 0,.30,.36, 0,.80,.78, .65,1,.95], ask: [.06,.015,0, .55,.17,0, 1,.50,.02, 1,.88,.55],
     en: 'The film-grading pair: orange against its cool opposite. Both colours lie along the blue–yellow axis of human vision, which red–green colour blindness leaves intact. The two sides are similar in brightness, so the contrast is carried by hue alone.',
     hu: 'A filmes színkorrekció bevált párja: narancs a hideg ellentétével szemben. Mindkét szín a látás kék–sárga tengelye mentén fekszik, amelyet a vörös–zöld színtévesztés nem érint. A két oldal világossága hasonló, ezért a kontrasztot csak az árnyalat adja.' },
-  { name: 'Violet / Gold', hud: ['#b79bff', '#ffd24a'],
+  { name: 'Violet / Gold', hud: ['#b79bff', '#ffd24a'], ink: ['#5b33c9', '#a87400'],
     bid: [.02,0,.07, .22,.05,.70, .55,.35,1, .88,.80,1], ask: [.06,.03,0, .50,.30,0, 1,.75,.05, 1,.95,.65],
     en: 'Complementary hues with the largest brightness difference of any pair: yellow is the lightest saturated colour, violet the darkest. The two sides differ in lightness as well as hue, so they stay distinct for both red–green types of colour blindness.',
     hu: 'Komplementer árnyalatok a lehető legnagyobb világosságkülönbséggel: a sárga a legvilágosabb telített szín, az ibolya a legsötétebb. A két oldal világosságban is eltér, nem csak árnyalatban, így a vörös–zöld színtévesztés mindkét típusa mellett megkülönböztethető.' },
-  { name: 'Emerald / Magenta', hud: ['#4dffa0', '#ff6fd0'],
+  { name: 'Emerald / Magenta', hud: ['#4dffa0', '#ff6fd0'], ink: ['#0a8f4f', '#c41c8e'],
     bid: [0,.035,.02, 0,.36,.20, .05,.92,.50, .75,1,.85], ask: [.05,0,.04, .50,0,.36, 1,.15,.70, 1,.75,.95],
     en: 'Green and magenta are exact complements in additive light: together they make white. This is the widest hue gap of the five palettes. Keeps the "green is buying" convention. Clearly better than green–red for protan colour blindness, only slightly better for the more common deutan type.',
     hu: 'A zöld és a magenta az additív fénykeverésben pontos komplementerek: együtt fehéret adnak. Az öt paletta közül itt a legnagyobb az árnyalatkülönbség. Megtartja a „zöld a vétel" konvenciót. Protán színtévesztésnél egyértelműen jobb a zöld–vörösnél, a gyakoribb deután típusnál csak kicsivel.' },
-  { name: 'Green / Red (classic)', hud: ['#5dff7a', '#ff6b5e'],
+  { name: 'Green / Red (classic)', hud: ['#5dff7a', '#ff6b5e'], ink: ['#1c8f2e', '#c62a1e'],
     bid: [0,.035,.01, .02,.38,.08, .15,.92,.25, .8,1,.75], ask: [.07,0,.01, .60,.02,.05, 1,.22,.12, 1,.8,.6],
     en: 'The trading-screen convention. Included for familiarity, not recommended: about 8% of men cannot reliably tell these two apart, and the pair has little brightness difference to fall back on.',
     hu: 'A kereskedési képernyők megszokott párja. Az ismerősség kedvéért szerepel, nem ajánlott: a férfiak nagyjából 8%-a nem tudja megbízhatóan megkülönböztetni a kettőt, és világosságban is alig térnek el.' }
 ];
+function applyTheme() {      // accent colours follow the palette; on paper they switch to darker inks
+  const p = PALETTES[palIdx], paper = !!(MAT && MAT.paper), c = paper ? p.ink : p.hud;
+  document.body.classList.toggle('paper', paper);
+  document.documentElement.style.setProperty('--bid', c[0]);
+  document.documentElement.style.setProperty('--ask', c[1]);
+}
 let palIdx = 0;
 try { palIdx = +localStorage.getItem('lc-pal') || 0; } catch (e) {}
 if (params.get('pal')) palIdx = +params.get('pal') || 0;
@@ -1019,8 +1066,7 @@ function setPalette(i) {
   palIdx = ((i % PALETTES.length) + PALETTES.length) % PALETTES.length;
   const p = PALETTES[palIdx];
   PAL = { bid: new Float32Array(p.bid), ask: new Float32Array(p.ask) };
-  document.documentElement.style.setProperty('--bid', p.hud[0]);
-  document.documentElement.style.setProperty('--ask', p.hud[1]);
+  applyTheme();
   const el = document.getElementById('palname'); if (el) el.textContent = p.name;
   try { localStorage.setItem('lc-pal', palIdx); } catch (e) {}
 }
@@ -1030,13 +1076,17 @@ document.getElementById('pal').onclick = () => { setPalette(palIdx + 1); hideTip
 /* ---------- materials: same data mapping, different motion and rendering ---------- */
 const MATERIALS = [
   { id: 'water', name: { en: 'Water', hu: 'Víz' }, prog: 'composite',
-    force: 150, curl: 24, turb: 1, velDiss: 0.2, dyeDiss: 0.1, relax: 0.4, puff: 0, bloomThr: 0.7, bloom: 0.13,
+    force: 150, curl: 24, turb: 1, velDiss: 0.2, dyeDiss: 0.1, relax: 0.4, puff: 0, fine: 0, bloomThr: 0.7, bloom: 0.13, bloomE: 0.1, vig: 1.15, paper: false,
     en: 'The baseline: a clear liquid with a glassy surface that bends and reflects light. Medium thickness, medium swirl. Differences in liquidity are easiest to read here.',
     hu: 'A kiinduló anyag: tiszta folyadék üveges felülettel, amely megtöri és tükrözi a fényt. Közepesen sűrű, közepesen örvénylik. A likviditás különbségei itt olvashatók a legkönnyebben.' },
   { id: 'smoke', name: { en: 'Smoke', hu: 'Füst' }, prog: 'composite_smoke',
-    force: 215, curl: 48, turb: 2.0, velDiss: 0.08, dyeDiss: 0.45, relax: 0.2, puff: 1, bloomThr: 0.85, bloom: 0.07,
+    force: 215, curl: 48, turb: 2.0, velDiss: 0.08, dyeDiss: 0.45, relax: 0.2, puff: 1, fine: 0, bloomThr: 0.85, bloom: 0.07, bloomE: 0.1, vig: 1.15, paper: false,
     en: 'Thin, fast and short-lived. It is released in puffs, travels quickly and thins out on the way, so it leaves dark space between plumes. More liquidity means denser puffs that reach further toward the centre. Drawn soft and translucent, with no surface.',
-    hu: 'Híg, gyors és rövid életű. Pöffökben szabadul ki, gyorsan halad, és útközben megritkul, ezért a gomolyok között sötét tér marad. Több likviditás sűrűbb pöfföket ad, amelyek messzebb jutnak a közép felé. Puha és áttetsző, felület nélkül.' }
+    hu: 'Híg, gyors és rövid életű. Pöffökben szabadul ki, gyorsan halad, és útközben megritkul, ezért a gomolyok között sötét tér marad. Több likviditás sűrűbb pöfföket ad, amelyek messzebb jutnak a közép felé. Puha és áttetsző, felület nélkül.' },
+  { id: 'ink', name: { en: 'Ink', hu: 'Tinta' }, prog: 'composite_ink',
+    force: 150, curl: 34, turb: 1.3, velDiss: 0.1, dyeDiss: 0.03, relax: 0.3, puff: 0, fine: 1, bloomThr: 9, bloom: 0, bloomE: 0, vig: 0.5, paper: true,
+    en: 'Ink on paper. It enters as thin strands that the flow folds into marbled lines, and it fades slowly, so the picture keeps a trace of where the fluid has been. The background is light and the ink darkens it: the more liquidity, the darker the strand. Drawn flat, with no surface or highlights.',
+    hu: 'Tinta papíron. Vékony szálakban érkezik, amelyeket az áramlás márványos vonalakká hajtogat, és lassan halványul, ezért a kép megőrzi, merre járt a folyadék. A háttér világos, a tinta sötétíti: minél több a likviditás, annál sötétebb a szál. Lapos, felület és csillogás nélkül.' }
 ];
 let matIdx = 0;
 try { matIdx = +localStorage.getItem('lc-mat') || 0; } catch (e) {}
@@ -1045,6 +1095,7 @@ function setMaterial(i) {
   matIdx = ((i % MATERIALS.length) + MATERIALS.length) % MATERIALS.length;
   MAT = MATERIALS[matIdx];
   document.getElementById('matname').textContent = MAT.name[lang];
+  applyTheme();
   try { localStorage.setItem('lc-mat', matIdx); } catch (e) {}
 }
 setMaterial(matIdx);
@@ -1151,7 +1202,7 @@ function simulate(dt) {
   tex('uVelocity', vel.read, 0); tex('uSource', vel.read, 0); f1('uDissipation', MAT.velDiss); draw(vel.write); vel.swap();
   tex('uVelocity', vel.read, 0); tex('uSource', dye.read, 1); f1('uDissipation', MAT.dyeDiss); draw(dye.write); dye.swap();
 
-  use(P.dye); setCommon(); tex('uDye', dye.read, 0); f1('uDt', dt); f1('uBoost', bootT < 2 ? 3 : 0); f1('uRelax', MAT.relax); f1('uPuff', MAT.puff);
+  use(P.dye); setCommon(); tex('uDye', dye.read, 0); f1('uDt', dt); f1('uBoost', bootT < 2 ? 3 : 0); f1('uRelax', MAT.relax); f1('uPuff', MAT.puff); f1('uFine', MAT.fine);
   draw(dye.write); dye.swap();
 }
 
@@ -1169,7 +1220,7 @@ function render() {
     gl.disable(gl.BLEND);
   }
   use(P.final); tex('uScene', scene, 0); tex('uBloom', bloom[0] || scene, 1);
-  f1('uTime', simTime); f1('uCA', 0.012 * S.energy); f1('uBloomI', bloom.length ? MAT.bloom + 0.1 * S.energy : 0);
+  f1('uTime', simTime); f1('uCA', 0.012 * S.energy); f1('uBloomI', bloom.length ? MAT.bloom + MAT.bloomE * S.energy : 0); f1('uVig', MAT.vig);
   draw(null);
 }
 
