@@ -1,0 +1,65 @@
+{
+  "deployed": true,
+  "waited_s": 0,
+  "shots": [
+    {
+      "name": "honey-45",
+      "at_s": 45,
+      "renderer": "ANGLE (Apple, ANGLE Metal Renderer: Apple M3, Unspecified Version)",
+      "hud_tr": "LIVE FEED\nWS-FEED.EXCHANGE.COINBASE.COM\nPING\n126 MS\nTHROUGHPUT\n46 TICKS/S\nTAPE\n$76/S ▼\nRENDER\n60 FPS",
+      "matname": "Honey",
+      "err_text": "",
+      "console_errors": [],
+      "page_errors": []
+    },
+    {
+      "name": "honey-120",
+      "at_s": 120,
+      "renderer": "ANGLE (Apple, ANGLE Metal Renderer: Apple M3, Unspecified Version)",
+      "hud_tr": "LIVE FEED\nWS-FEED.EXCHANGE.COINBASE.COM\nPING\n128 MS\nTHROUGHPUT\n178 TICKS/S\nTAPE\n$6K/S ▲\nRENDER\n60 FPS",
+      "matname": "Honey",
+      "err_text": "",
+      "console_errors": [],
+      "page_errors": [],
+      "pacing_after_120s": {
+        "frames": 600,
+        "avg_ms": 16.67,
+        "p95_ms": 16.7,
+        "max_ms": 16.8,
+        "over_25ms": 0,
+        "over_20ms": 0
+      }
+    },
+    {
+      "name": "oil-45",
+      "at_s": 45,
+      "renderer": "ANGLE (Apple, ANGLE Metal Renderer: Apple M3, Unspecified Version)",
+      "hud_tr": "LIVE FEED\nWS-FEED.EXCHANGE.COINBASE.COM\nPING\n125 MS\nTHROUGHPUT\n342 TICKS/S\nTAPE\n$10K/S ▲\nRENDER\n60 FPS",
+      "matname": "Oil",
+      "err_text": "",
+      "console_errors": [],
+      "page_errors": []
+    },
+    {
+      "name": "oil-120",
+      "at_s": 120,
+      "renderer": "ANGLE (Apple, ANGLE Metal Renderer: Apple M3, Unspecified Version)",
+      "hud_tr": "LIVE FEED\nWS-FEED.EXCHANGE.COINBASE.COM\nPING\n127 MS\nTHROUGHPUT\n115 TICKS/S\nTAPE\n$94/S ▼\nRENDER\n60 FPS",
+      "matname": "Oil",
+      "err_text": "",
+      "console_errors": [],
+      "page_errors": [],
+      "pacing_after_120s": null
+    },
+    {
+      "name": "honey-phone",
+      "at_s": 45,
+      "renderer": "ANGLE (Apple, ANGLE Metal Renderer: Apple M3, Unspecified Version)",
+      "hud_tr": "LIVE FEED\n124 MS\n79 TICKS/S\n$33/S ▲\n60 FPS",
+      "matname": "Honey",
+      "err_text": "",
+      "console_errors": [],
+      "page_errors": []
+    }
+  ]
+}
