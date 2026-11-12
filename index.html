@@ -63,6 +63,10 @@
     radial-gradient(ellipse 48% 56% at 0% 0%, rgba(236,230,218,0.94) 30%, rgba(236,230,218,0) 100%),
     radial-gradient(ellipse 38% 36% at 100% 0%, rgba(236,230,218,0.94) 30%, rgba(236,230,218,0) 100%),
     linear-gradient(0deg, rgba(236,230,218,0.92) 0, rgba(236,230,218,0.6) 12%, rgba(236,230,218,0) 26%); }
+  body.bright::after { background:
+    radial-gradient(ellipse 48% 56% at 0% 0%, rgba(2,3,8,0.92) 30%, rgba(2,3,8,0) 100%),
+    radial-gradient(ellipse 38% 36% at 100% 0%, rgba(2,3,8,0.92) 30%, rgba(2,3,8,0) 100%),
+    linear-gradient(0deg, rgba(2,3,8,0.92) 0, rgba(2,3,8,0.6) 12%, rgba(2,3,8,0) 26%); }
   body.paper .hud, body.paper .axis, body.paper #labels { --ink: #171a21; --dim: rgba(30,34,46,0.68); --faint: rgba(30,34,46,0.45); }
   body.paper .hud { text-shadow: 0 0 10px rgba(238,232,220,0.95), 0 0 2px rgba(238,232,220,0.9); }
   body.paper .mid { color: var(--ink); }
@@ -1158,6 +1162,7 @@ const PALETTES = [
 function applyTheme() {      // accent colours follow the palette; on paper they switch to darker inks
   const p = PALETTES[palIdx], paper = !!(MAT && MAT.paper), c = paper ? p.ink : p.hud;
   document.body.classList.toggle('paper', paper);
+  document.body.classList.toggle('bright', !!(MAT && MAT.cover));   // bright metal needs a darker backing under the text
   document.documentElement.style.setProperty('--bid', c[0]);
   document.documentElement.style.setProperty('--ask', c[1]);
 }
