@@ -13,4 +13,19 @@ Live: https://muellah.github.io/liquidity-collider/
 - If the feed cannot be reached, a seeded synthetic order book runs instead.
 
 Press `?` in the app for an explanation of everything on screen.
-`P` switches colour palette, `H` hides the text, `M` toggles live / synthetic data.
+`P` switches colour palette, `F` switches material, `H` hides the text, `M` toggles live / synthetic data.
+
+## Materials
+
+The data mapping is the same for every material; a material changes how the fluid moves and how it is drawn.
+
+| Material | Motion | Look |
+|---|---|---|
+| Water | medium | glassy, refracting surface |
+| Smoke | thin, fast, released in puffs | soft and translucent, no surface |
+| Ink | thin strands that fade slowly | dark ink on light paper |
+| Oil | thicker than water, slow large swirls | dark glossy layer with a faint rainbow at thin edges |
+| Honey | thickest, creeps in broad bands | dull translucent gel |
+| Mercury | medium | sharp-edged mirror metal; the amount shows as coverage |
+
+`?mat=<name>` and `?pal=<0-4>` in the URL select a material and palette directly.
