@@ -1,0 +1,194 @@
+{
+  "deployed": true,
+  "waited_s": 0,
+  "method": "Playwright 1.56.1, Google Chrome 157 headless (channel chrome), Apple M3 Metal renderer; i pressed once after load; measurements via gl.readPixels on vel.read.fbo",
+  "shots": [
+    {
+      "name": "water-60",
+      "mat": "water",
+      "at_s": 60,
+      "renderer": "ANGLE (Apple, ANGLE Metal Renderer: Apple M3, Unspecified Version)",
+      "hud_tr": "LIVE FEED\nWS-FEED.EXCHANGE.COINBASE.COM\nPING\n118 MS\nTHROUGHPUT\n108 TICKS/S\nTAPE\n$917/S ▼\nRENDER\n60 FPS",
+      "matname": "Water",
+      "err_text": "",
+      "measurements": [
+        {
+          "at_s": 60,
+          "speed": 0.20370525689181432,
+          "cross": 0.42597689545895845,
+          "w": 282,
+          "h": 176,
+          "glError": 0
+        },
+        {
+          "at_s": 65,
+          "speed": 0.21405407319465938,
+          "cross": 0.44261734394997015,
+          "w": 282,
+          "h": 176,
+          "glError": 0
+        },
+        {
+          "at_s": 70,
+          "speed": 0.1707722995677215,
+          "cross": 0.4379698966918202,
+          "w": 282,
+          "h": 176,
+          "glError": 0
+        }
+      ],
+      "console_errors": [],
+      "page_errors": []
+    },
+    {
+      "name": "oil-60",
+      "mat": "oil",
+      "at_s": 60,
+      "renderer": "ANGLE (Apple, ANGLE Metal Renderer: Apple M3, Unspecified Version)",
+      "hud_tr": "LIVE FEED\nWS-FEED.EXCHANGE.COINBASE.COM\nPING\n119 MS\nTHROUGHPUT\n241 TICKS/S\nTAPE\n$323/S ▼\nRENDER\n60 FPS",
+      "matname": "Oil",
+      "err_text": "",
+      "measurements": [
+        {
+          "at_s": 60,
+          "speed": 0.161315661634584,
+          "cross": 0.3321086520066685,
+          "w": 282,
+          "h": 176,
+          "glError": 0
+        },
+        {
+          "at_s": 65,
+          "speed": 0.15711213693637968,
+          "cross": 0.33754235333797555,
+          "w": 282,
+          "h": 176,
+          "glError": 0
+        },
+        {
+          "at_s": 70,
+          "speed": 0.14560870816363278,
+          "cross": 0.3078666713765386,
+          "w": 282,
+          "h": 176,
+          "glError": 0
+        }
+      ],
+      "second": {
+        "name": "oil-70",
+        "at_s": 70,
+        "renderer": "ANGLE (Apple, ANGLE Metal Renderer: Apple M3, Unspecified Version)",
+        "hud_tr": "LIVE FEED\nWS-FEED.EXCHANGE.COINBASE.COM\nPING\n119 MS\nTHROUGHPUT\n243 TICKS/S\nTAPE\n$139/S ▼\nRENDER\n60 FPS",
+        "matname": "Oil",
+        "err_text": ""
+      },
+      "console_errors": [],
+      "page_errors": []
+    },
+    {
+      "name": "oil-60-synthetic",
+      "mat": "oil",
+      "at_s": 60,
+      "renderer": "ANGLE (Apple, ANGLE Metal Renderer: Apple M3, Unspecified Version)",
+      "hud_tr": "SYNTHETIC REPLAY\nLIVE FEED UNREACHABLE · SEEDED BOOK\nPING\n—\nTHROUGHPUT\n1,313 TICKS/S\nTAPE\n$42K/S ▲\nRENDER\n60 FPS",
+      "matname": "Oil",
+      "err_text": "",
+      "measurements": [
+        {
+          "at_s": 60,
+          "speed": 0.19164649989855462,
+          "cross": 0.18040985037098795,
+          "w": 282,
+          "h": 176,
+          "glError": 0
+        },
+        {
+          "at_s": 65,
+          "speed": 0.18643236492754653,
+          "cross": 0.17808360815078,
+          "w": 282,
+          "h": 176,
+          "glError": 0
+        },
+        {
+          "at_s": 70,
+          "speed": 0.18505754944591624,
+          "cross": 0.1758216405586174,
+          "w": 282,
+          "h": 176,
+          "glError": 0
+        }
+      ],
+      "second": {
+        "name": "oil-70-synthetic",
+        "at_s": 70,
+        "renderer": "ANGLE (Apple, ANGLE Metal Renderer: Apple M3, Unspecified Version)",
+        "hud_tr": "SYNTHETIC REPLAY\nLIVE FEED UNREACHABLE · SEEDED BOOK\nPING\n—\nTHROUGHPUT\n1,331 TICKS/S\nTAPE\n$190K/S ▼\nRENDER\n60 FPS",
+        "matname": "Oil",
+        "err_text": ""
+      },
+      "console_errors": [],
+      "page_errors": [],
+      "note": "First run: page fell back to SYNTHETIC REPLAY (live feed unreachable); kept for reference, rerun below used the live feed."
+    },
+    {
+      "name": "honey-60",
+      "mat": "honey",
+      "at_s": 60,
+      "renderer": "ANGLE (Apple, ANGLE Metal Renderer: Apple M3, Unspecified Version)",
+      "hud_tr": "LIVE FEED\nWS-FEED.EXCHANGE.COINBASE.COM\nPING\n128 MS\nTHROUGHPUT\n283 TICKS/S\nTAPE\n$1K/S ▼\nRENDER\n60 FPS",
+      "matname": "Honey",
+      "err_text": "",
+      "measurements": [
+        {
+          "at_s": 60,
+          "speed": 0.11733333250271029,
+          "cross": 0.1791644016869742,
+          "w": 282,
+          "h": 176,
+          "glError": 0
+        },
+        {
+          "at_s": 65,
+          "speed": 0.11541899401025603,
+          "cross": 0.1760026628106241,
+          "w": 282,
+          "h": 176,
+          "glError": 0
+        },
+        {
+          "at_s": 70,
+          "speed": 0.11330585255783693,
+          "cross": 0.1942322292999215,
+          "w": 282,
+          "h": 176,
+          "glError": 0
+        }
+      ],
+      "console_errors": [],
+      "page_errors": []
+    },
+    {
+      "name": "oil-phone",
+      "mat": "oil",
+      "at_s": 60,
+      "renderer": "ANGLE (Apple, ANGLE Metal Renderer: Apple M3, Unspecified Version)",
+      "hud_tr": "LIVE FEED\n129 MS\n338 TICKS/S\n$134/S ▼\n60 FPS",
+      "matname": "Oil",
+      "err_text": "",
+      "console_errors": [],
+      "page_errors": []
+    },
+    {
+      "name": "honey-phone",
+      "mat": "honey",
+      "at_s": 60,
+      "renderer": "ANGLE (Apple, ANGLE Metal Renderer: Apple M3, Unspecified Version)",
+      "hud_tr": "LIVE FEED\n129 MS\n170 TICKS/S\n$1/S ▲\n60 FPS",
+      "matname": "Honey",
+      "err_text": "",
+      "console_errors": [],
+      "page_errors": []
+    }
+  ]
+}
