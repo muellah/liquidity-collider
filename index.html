@@ -557,7 +557,15 @@ void main(){ float L=texture(uP,vUv-vec2(uTexel.x,0)).x, R=texture(uP,vUv+vec2(u
   o = vec4(texture(uVel,vUv).xy - vec2(R-L,T-B),0,1); }`,
 
   // Dye channels: r = bid density, g = ask density, b = heat (annihilation / shock), a = cavity mask.
-  dye: HEAD + COMMON + `uniform sampler2D uDye; uniform float uDt, uBoost, uRelax, uPuff, uFine;
+  dye: HEAD + COMMON + `uniform sampler2D uDye; uniform float uDt, uBoost, uRelax, uPuff, uFine, uEdge;
+// Drops: each of 10 slots along the edge releases a short burst at its own rhythm, at a new height every time.
+float drops(float y, float t, float seed){
+  float cy = y*10.0, id = floor(cy), f = fract(cy);
+  float period = 1.5+2.3*hash(vec2(id,seed)), ph = t/period + hash(vec2(id+7.3,seed+2.1));
+  float k = floor(ph), u = fract(ph);
+  float dy = f-(0.25+0.5*hash(vec2(id+k*13.7,seed+5.0)));
+  return smoothstep(0.0,0.03,u)*smoothstep(0.26,0.10,u)*exp(-dy*dy/0.035);
+}
 void main(){
   vec4 c = texture(uDye,vUv); float b=c.r, a=c.g, h=c.b, cv=c.a; float x=vUv.x;
   vec4 d = tierData(vUv.y); vec2 f = fronts(vUv,d);
@@ -565,13 +573,13 @@ void main(){
   float inA = smoothstep(f.y-0.004, f.y+0.004, x);
   float sB = 0.15 + 2.4*pow(fbm(vec2(vUv.y*30.0, uTime*0.22)),1.6);
   float sA = 0.15 + 2.4*pow(fbm(vec2(vUv.y*30.0+57.0, uTime*0.22+9.0)),1.6);
-  // Fine strands: the inflow is concentrated into thin lines (0 = broad streaks).
-  sB = mix(sB, 0.06+17.0*pow(fbm(vec2(vUv.y*60.0, uTime*0.06)),5.0), uFine);
-  sA = mix(sA, 0.06+17.0*pow(fbm(vec2(vUv.y*60.0+57.0, uTime*0.06+9.0)),5.0), uFine);
+  // Drops: the inflow is clear and the dye is dropped into it at the edge (0 = dye flows in as a stream).
+  sB = mix(sB, 12.0*drops(vUv.y, uTime, 1.0), uFine);
+  sA = mix(sA, 12.0*drops(vUv.y, uTime, 41.0), uFine);
   // Puffs: the inflow is released in bursts that differ from row to row (0 = steady stream).
   sB *= mix(1.0, 0.3+1.8*smoothstep(0.32,0.70,noise(vec2(vUv.y*6.0, uTime*0.8))), uPuff);
   sA *= mix(1.0, 0.3+1.8*smoothstep(0.32,0.70,noise(vec2(vUv.y*6.0+31.0, uTime*0.8+5.0))), uPuff);
-  float edgeB = smoothstep(0.18,0.0,x), edgeA = smoothstep(0.82,1.0,x);
+  float edgeB = smoothstep(uEdge,0.0,x), edgeA = smoothstep(1.0-uEdge,1.0,x);
   float relax = 1.0-0.85*cv;
   // Density on every row is pulled toward that tier's liquidity: fast at the inflow edge, slow elsewhere.
   b += (d.r*sB - b)*(1.0-exp(-(5.0*edgeB+uRelax+uBoost)*relax*uDt))*inB;
@@ -1076,17 +1084,17 @@ document.getElementById('pal').onclick = () => { setPalette(palIdx + 1); hideTip
 /* ---------- materials: same data mapping, different motion and rendering ---------- */
 const MATERIALS = [
   { id: 'water', name: { en: 'Water', hu: 'Víz' }, prog: 'composite',
-    force: 150, curl: 24, turb: 1, velDiss: 0.2, dyeDiss: 0.1, relax: 0.4, puff: 0, fine: 0, bloomThr: 0.7, bloom: 0.13, bloomE: 0.1, vig: 1.15, paper: false,
+    force: 150, curl: 24, turb: 1, velDiss: 0.2, dyeDiss: 0.1, relax: 0.4, puff: 0, fine: 0, edge: 0.18, bloomThr: 0.7, bloom: 0.13, bloomE: 0.1, vig: 1.15, paper: false,
     en: 'The baseline: a clear liquid with a glassy surface that bends and reflects light. Medium thickness, medium swirl. Differences in liquidity are easiest to read here.',
     hu: 'A kiinduló anyag: tiszta folyadék üveges felülettel, amely megtöri és tükrözi a fényt. Közepesen sűrű, közepesen örvénylik. A likviditás különbségei itt olvashatók a legkönnyebben.' },
   { id: 'smoke', name: { en: 'Smoke', hu: 'Füst' }, prog: 'composite_smoke',
-    force: 215, curl: 48, turb: 2.0, velDiss: 0.08, dyeDiss: 0.45, relax: 0.2, puff: 1, fine: 0, bloomThr: 0.85, bloom: 0.07, bloomE: 0.1, vig: 1.15, paper: false,
+    force: 215, curl: 48, turb: 2.0, velDiss: 0.08, dyeDiss: 0.45, relax: 0.2, puff: 1, fine: 0, edge: 0.18, bloomThr: 0.85, bloom: 0.07, bloomE: 0.1, vig: 1.15, paper: false,
     en: 'Thin, fast and short-lived. It is released in puffs, travels quickly and thins out on the way, so it leaves dark space between plumes. More liquidity means denser puffs that reach further toward the centre. Drawn soft and translucent, with no surface.',
     hu: 'Híg, gyors és rövid életű. Pöffökben szabadul ki, gyorsan halad, és útközben megritkul, ezért a gomolyok között sötét tér marad. Több likviditás sűrűbb pöfföket ad, amelyek messzebb jutnak a közép felé. Puha és áttetsző, felület nélkül.' },
   { id: 'ink', name: { en: 'Ink', hu: 'Tinta' }, prog: 'composite_ink',
-    force: 105, curl: 40, turb: 0.8, velDiss: 0.15, dyeDiss: 0.02, relax: 0.22, puff: 0, fine: 1, bloomThr: 9, bloom: 0, bloomE: 0, vig: 0.5, paper: true,
-    en: 'Ink on paper. It enters as thin threads, drifts slowly and is folded by the flow into marbled lines, leaving much of the paper empty. It fades very slowly, so the picture keeps a trace of where the fluid has been. The ink darkens the light background: more liquidity means more and darker threads. Drawn flat, with no surface or highlights.',
-    hu: 'Tinta papíron. Vékony szálakban érkezik, lassan sodródik, és az áramlás márványos vonalakká hajtogatja, miközben a papír nagy része üres marad. Nagyon lassan halványul, ezért a kép megőrzi, merre járt a folyadék. A tinta sötétíti a világos hátteret: több likviditás több és sötétebb szálat jelent. Lapos, felület és csillogás nélkül.' }
+    force: 120, curl: 40, turb: 0.8, velDiss: 0.15, dyeDiss: 0.05, relax: 0.0, puff: 0, fine: 1, edge: 0.07, bloomThr: 9, bloom: 0, bloomE: 0, vig: 0.5, paper: true,
+    en: 'Ink dropped into clear water, on paper. The water flows toward the centre as before, but the colour does not arrive as a stream: drops of ink fall in at the two edges, and the flow carries and unfolds them. More liquidity on a row means darker drops there. The ink fades slowly, so the picture keeps a trace of where it has been. Drawn flat, with no surface or highlights.',
+    hu: 'Tiszta vízbe cseppentett tinta, papíron. A víz ugyanúgy áramlik a közép felé, de a szín nem folyamként érkezik: a két szélen tintacseppek hullanak bele, és az áramlás viszi és bontja szét őket. Ahol több a likviditás, ott sötétebbek a cseppek. A tinta lassan halványul, ezért a kép megőrzi, merre járt. Lapos, felület és csillogás nélkül.' }
 ];
 let matIdx = 0;
 try { matIdx = +localStorage.getItem('lc-mat') || 0; } catch (e) {}
@@ -1202,7 +1210,7 @@ function simulate(dt) {
   tex('uVelocity', vel.read, 0); tex('uSource', vel.read, 0); f1('uDissipation', MAT.velDiss); draw(vel.write); vel.swap();
   tex('uVelocity', vel.read, 0); tex('uSource', dye.read, 1); f1('uDissipation', MAT.dyeDiss); draw(dye.write); dye.swap();
 
-  use(P.dye); setCommon(); tex('uDye', dye.read, 0); f1('uDt', dt); f1('uBoost', bootT < 2 ? 3 : 0); f1('uRelax', MAT.relax); f1('uPuff', MAT.puff); f1('uFine', MAT.fine);
+  use(P.dye); setCommon(); tex('uDye', dye.read, 0); f1('uDt', dt); f1('uBoost', bootT < 2 ? 3 : 0); f1('uRelax', MAT.relax); f1('uPuff', MAT.puff); f1('uFine', MAT.fine); f1('uEdge', MAT.edge);
   draw(dye.write); dye.swap();
 }
 
