@@ -1,0 +1,61 @@
+{
+  "deployed": true,
+  "waited_s": 0,
+  "shots": [
+    {
+      "name": "water",
+      "url": "https://muellah.github.io/liquidity-collider/?mat=water",
+      "phone": false,
+      "hud_tr": "LIVE FEED\nWS-FEED.EXCHANGE.COINBASE.COM\nPING\n121 MS\nTHROUGHPUT\n180 TICKS/S\nTAPE\n$601/S ▼\nRENDER\n60 FPS",
+      "matname": "Water",
+      "err_text": "",
+      "err_empty": true,
+      "console_errors": [],
+      "page_errors": [],
+      "pacing": null
+    },
+    {
+      "name": "ink",
+      "url": "https://muellah.github.io/liquidity-collider/?mat=ink",
+      "phone": false,
+      "hud_tr": "LIVE FEED\nWS-FEED.EXCHANGE.COINBASE.COM\nPING\n131 MS\nTHROUGHPUT\n28 TICKS/S\nTAPE\n$565/S ▲\nRENDER\n61 FPS",
+      "matname": "Ink",
+      "err_text": "",
+      "err_empty": true,
+      "console_errors": [],
+      "page_errors": [],
+      "pacing": null
+    },
+    {
+      "name": "oil",
+      "url": "https://muellah.github.io/liquidity-collider/?mat=oil",
+      "phone": false,
+      "hud_tr": "LIVE FEED\nWS-FEED.EXCHANGE.COINBASE.COM\nPING\n124 MS\nTHROUGHPUT\n80 TICKS/S\nTAPE\n$35/S ▼\nRENDER\n60 FPS",
+      "matname": "Oil",
+      "err_text": "",
+      "err_empty": true,
+      "console_errors": [],
+      "page_errors": [],
+      "pacing": {
+        "frames": 600,
+        "avg_ms": 16.67,
+        "p95_ms": 18.6,
+        "max_ms": 18.7,
+        "over_25ms": 0,
+        "over_20ms": 0
+      }
+    },
+    {
+      "name": "oil-phone",
+      "url": "https://muellah.github.io/liquidity-collider/?mat=oil",
+      "phone": true,
+      "hud_tr": "LIVE FEED\n130 MS\n191 TICKS/S\n$995/S ▼\n60 FPS",
+      "matname": "Oil",
+      "err_text": "",
+      "err_empty": true,
+      "console_errors": [],
+      "page_errors": [],
+      "pacing": null
+    }
+  ]
+}
