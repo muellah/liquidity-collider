@@ -1,0 +1,46 @@
+{
+  "deployed": true,
+  "waited_s": 0,
+  "shots": [
+    {
+      "name": "ink-30",
+      "at_s": 30,
+      "hud_tr": "LIVE FEED\nWS-FEED.EXCHANGE.COINBASE.COM\nPING\n130 MS\nTHROUGHPUT\n445 TICKS/S\nTAPE\n$3K/S ▲\nRENDER\n60 FPS",
+      "matname": "Ink",
+      "err_text": "",
+      "console_errors": [],
+      "page_errors": [],
+      "favicon": "data:,"
+    },
+    {
+      "name": "ink-90",
+      "at_s": 90,
+      "hud_tr": "LIVE FEED\nWS-FEED.EXCHANGE.COINBASE.COM\nPING\n129 MS\nTHROUGHPUT\n89 TICKS/S\nTAPE\n$93/S ▲\nRENDER\n60 FPS",
+      "matname": "Ink",
+      "err_text": "",
+      "console_errors": [],
+      "page_errors": [],
+      "favicon": "data:,"
+    },
+    {
+      "name": "ink-phone-30",
+      "at_s": 31,
+      "hud_tr": "LIVE FEED\n124 MS\n200 TICKS/S\n$649/S ▼\n60 FPS",
+      "matname": "Ink",
+      "err_text": "",
+      "console_errors": [],
+      "page_errors": [],
+      "favicon": "data:,"
+    },
+    {
+      "name": "ink-phone-90",
+      "at_s": 91,
+      "hud_tr": "LIVE FEED\n123 MS\n192 TICKS/S\n$3K/S ▲\n60 FPS",
+      "matname": "Ink",
+      "err_text": "",
+      "console_errors": [],
+      "page_errors": [],
+      "favicon": "data:,"
+    }
+  ]
+}
