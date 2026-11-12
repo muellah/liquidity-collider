@@ -4,6 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no">
 <title>Liquidity Collider — BTC-USD</title>
+<link rel="icon" href="data:,">
 <style>
   :root {
     --bid: #58d0ff;
@@ -1210,7 +1211,7 @@ function simulate(dt) {
   tex('uVelocity', vel.read, 0); tex('uSource', vel.read, 0); f1('uDissipation', MAT.velDiss); draw(vel.write); vel.swap();
   tex('uVelocity', vel.read, 0); tex('uSource', dye.read, 1); f1('uDissipation', MAT.dyeDiss); draw(dye.write); dye.swap();
 
-  use(P.dye); setCommon(); tex('uDye', dye.read, 0); f1('uDt', dt); f1('uBoost', bootT < 2 ? 3 : 0); f1('uRelax', MAT.relax); f1('uPuff', MAT.puff); f1('uFine', MAT.fine); f1('uEdge', MAT.edge);
+  use(P.dye); setCommon(); tex('uDye', dye.read, 0); f1('uDt', dt); f1('uBoost', bootT < 2 ? 3 : 0); f1('uRelax', MAT.relax); f1('uPuff', MAT.puff); f1('uFine', MAT.fine); f1('uEdge', MAT.fine ? Math.min(0.2, MAT.edge * Math.max(1, 1.3 / aspect)) : MAT.edge);
   draw(dye.write); dye.swap();
 }
 
