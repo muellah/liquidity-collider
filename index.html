@@ -756,19 +756,20 @@ vec4 soft(vec2 uv, float r){ vec2 e = uTexel*r;
 float envf(vec2 r){                                    // dark floor, bright sky, one hard light strip, soft side lights
   return 0.03 + 0.15*smoothstep(-0.15,0.5,r.y) + 0.95*smoothstep(0.58,0.62,r.y)*(1.0-smoothstep(0.68,0.72,r.y))
        + 0.06*smoothstep(-0.25,-0.65,r.y) + 0.14*pow(0.5+0.5*sin(r.x*9.0+0.7),10.0); }
+uniform sampler2D uSmooth; uniform vec2 uSmoothTexel;
 float D(vec4 c){ return c.r+c.g; }
 void main(){
   vec2 uv = vUv; float ring = shockWarp(uv);
-  vec4 c = (soft(uv,2.5)+soft(uv,5.0))*0.5; float d = D(c);
-  vec2 e = uTexel*6.0;
-  float dL=D(soft(uv-vec2(e.x,0),4.0)), dR=D(soft(uv+vec2(e.x,0),4.0)),
-        dB=D(soft(uv-vec2(0,e.y),4.0)), dT=D(soft(uv+vec2(0,e.y),4.0));
-  const float TH = 0.5;
-  float surf = smoothstep(TH-0.03, TH+0.03, d);                     // sharp edge
-  float dome = smoothstep(TH, 0.95, d);                             // 0 at the rim, 1 on the flat top
+  vec4 c = texture(uSmooth,uv); float d = D(c);                    // blurred copy: rounds the outline
+  vec2 e = uSmoothTexel*1.5;
+  float dL=D(texture(uSmooth,uv-vec2(e.x,0))), dR=D(texture(uSmooth,uv+vec2(e.x,0))),
+        dB=D(texture(uSmooth,uv-vec2(0,e.y))), dT=D(texture(uSmooth,uv+vec2(0,e.y)));
+  const float TH = 0.26;
+  float surf = smoothstep(TH-0.015, TH+0.015, d);                   // sharp edge
+  float dome = smoothstep(TH, TH+0.30, d);                          // 0 at the rim, 1 on the flat top
   vec2 q = uv*vec2(uAspect,1.0)*4.0;
   vec2 wob = vec2(noise(q+vec2(uTime*0.05,0.0)), noise(q+vec2(7.3,-uTime*0.04)))-0.5;   // the top is not perfectly flat
-  vec3 Nn = normalize(vec3(-vec2(dR-dL,dT-dB)*mix(6.5,0.5,dome) + wob*0.6*dome, 1.0));   // steep rim, near-flat top
+  vec3 Nn = normalize(vec3(-vec2(dR-dL,dT-dB)*mix(9.0,0.6,dome) + wob*0.6*dome, 1.0));   // steep rim, near-flat top
   vec3 V = vec3(0,0,1); vec3 Rf = reflect(-V,Nn);
   float m = envf(Rf.xy*1.6 + (uv-0.5)*vec2(0.55,0.75) + vec2(0.0,0.12));   // the flat top mirrors a slowly varying room
   float side = c.g/(d+1e-4);                                        // 0 = bids, 1 = asks
@@ -778,7 +779,7 @@ void main(){
   vec3 L1 = normalize(vec3(-0.5,0.6,0.62));
   metal += pow(max(dot(Nn,normalize(L1+V)),0.0),160.0)*1.6;
   vec3 col = metal*surf;
-  col += heatCol(c.b);
+  col += heatCol(texture(uDye,uv).b);
   col += backdrop(uv.y)*(1.0-surf);
   col += ring*vec3(1.0,0.93,0.85)*0.35;
   o = vec4(col,1.0);
@@ -865,7 +866,7 @@ gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR); gl.texParamet
 gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
 gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA16F, N, 1, 0, gl.RGBA, gl.FLOAT, dataTexBuf);
 
-let vel, dye, curlT, divT, pres, scene, bloom = [], aspect = 1, simTime = 0, bootT = 0;
+let smooth, vel, dye, curlT, divT, pres, scene, bloom = [], aspect = 1, simTime = 0, bootT = 0;
 function resize() {
   const cw = canvas.clientWidth || innerWidth, ch = canvas.clientHeight || innerHeight;
   let dpr = Math.min(window.devicePixelRatio || 1, 1.5);
@@ -880,6 +881,7 @@ function resize() {
   vel = double(vw, vh, gl.LINEAR); pres = double(vw, vh, gl.NEAREST);
   curlT = target(vw, vh, gl.NEAREST); divT = target(vw, vh, gl.NEAREST);
   dye = double(dw, dh, gl.LINEAR);
+  smooth = double(Math.max(8, dw >> 2), Math.max(8, dh >> 2), gl.LINEAR);
   scene = target(W, Hh, gl.LINEAR);
   bloom = [];
   let bw = W >> 1, bh = Hh >> 1;
@@ -1214,7 +1216,7 @@ const MATERIALS = [
     force: 300, curl: 0, turb: 0, visc: 1.0, shear: 0.6, velDiss: 1.6, dyeDiss: 0.05, relax: 0.25, puff: 0, fine: 0, edge: 0.18, bands: 5, bloomThr: 0.75, bloom: 0.09, bloomE: 0.1, vig: 1.15, paper: false,
     en: 'The thickest material. It creeps toward the centre in broad rounded tongues and folds slowly where it is pushed. Drawn as a dull, translucent gel with a soft inner light: thicker parts are a little brighter, the edges catch the light, and the highlights are wide and soft. More liquidity means a thicker, brighter tongue that pushes further.',
     hu: 'A legsűrűbb anyag. Széles, lekerekített nyelvekben kúszik a közép felé, és lassan gyűrődik, ahol nyomás éri. Tompa, áttetsző zseléként jelenik meg, lágy belső fénnyel: a vastagabb részek kicsit fényesebbek, a szélek megkapják a fényt, a csillogás pedig széles és lágy. Több likviditás vastagabb, fényesebb nyelvet jelent, amely messzebbre nyomul.' },
-  { id: 'mercury', name: { en: 'Mercury', hu: 'Higany' }, prog: 'composite_mercury', cover: true, coh: 0.45,
+  { id: 'mercury', name: { en: 'Mercury', hu: 'Higany' }, prog: 'composite_mercury', cover: true, coh: 0, smooth: 4,
     force: 170, curl: 10, turb: 0.6, visc: 0.2, shear: 1, velDiss: 0.3, dyeDiss: 0.1, relax: 0.4, puff: 0, fine: 0, edge: 0.18, bands: 14, bloomThr: 0.8, bloom: 0.1, bloomE: 0.1, vig: 1.15, paper: false,
     en: 'Liquid metal. It has a sharp edge and a mirror surface: where there is enough of it the metal forms a solid sheet, and where there is little it breaks into separate beads. The palette only tints the reflections, so here the amount is read from how much of a row the metal covers, not from brightness. It looks like mercury but does not pull itself into round drops the way real mercury does.',
     hu: 'Folyékony fém. Éles széle és tükröző felülete van: ahol elég van belőle, összefüggő lemezt alkot, ahol kevés, ott különálló gyöngyökre szakad. A paletta csak a tükröződést színezi, ezért itt a mennyiséget az mutatja, hogy a fém egy sorból mennyit fed le, nem a fényesség. Higanynak látszik, de nem húzódik magától kerek cseppekbe, ahogy a valódi higany.' }
@@ -1339,9 +1341,16 @@ function simulate(dt) {
 }
 
 function render() {
+  if (MAT.smooth) {                      // blur the dye in a few passes at quarter resolution
+    gl.disable(gl.BLEND); use(P.blur);
+    tex('uTex', dye.read, 0); f2('uTexel', dye.texel[0] * 2, dye.texel[1] * 2); draw(smooth.write); smooth.swap();
+    for (let i = 0; i < MAT.smooth; i++) { tex('uTex', smooth.read, 0); f2('uTexel', smooth.texel[0] * 1.5, smooth.texel[1] * 1.5); draw(smooth.write); smooth.swap(); }
+  }
   use(P[MAT.prog]); setCommon(); tex('uDye', dye.read, 0); f2('uTexel', dye.texel[0], dye.texel[1]);
   gl.uniform4fv(cur.u.uShock, shockBuf);
-  gl.uniform3fv(cur.u.uBid, PAL.bid); gl.uniform3fv(cur.u.uAsk, PAL.ask); draw(scene);
+  gl.uniform3fv(cur.u.uBid, PAL.bid); gl.uniform3fv(cur.u.uAsk, PAL.ask);
+  if (MAT.smooth) { tex('uSmooth', smooth.read, 2); f2('uSmoothTexel', smooth.texel[0], smooth.texel[1]); }
+  draw(scene);
 
   if (bloom.length) {
     use(P.prefilter); tex('uTex', scene, 0); f1('uThreshold', MAT.bloomThr); draw(bloom[0]);
