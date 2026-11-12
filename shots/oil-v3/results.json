@@ -1,0 +1,41 @@
+{
+  "deployed": true,
+  "waited_s": 0,
+  "shots": [
+    {
+      "name": "oil-45",
+      "at_s": 45,
+      "hud_tr": "LIVE FEED\nWS-FEED.EXCHANGE.COINBASE.COM\nPING\n127 MS\nTHROUGHPUT\n299 TICKS/S\nTAPE\n$2K/S ▼\nRENDER\n60 FPS",
+      "matname": "Oil",
+      "err_text": "",
+      "console_errors": [],
+      "page_errors": []
+    },
+    {
+      "name": "oil-120",
+      "at_s": 120,
+      "hud_tr": "LIVE FEED\nWS-FEED.EXCHANGE.COINBASE.COM\nPING\n128 MS\nTHROUGHPUT\n99 TICKS/S\nTAPE\n$56/S ▼\nRENDER\n60 FPS",
+      "matname": "Oil",
+      "err_text": "",
+      "console_errors": [],
+      "page_errors": [],
+      "pacing_after_120s": {
+        "frames": 600,
+        "avg_ms": 16.67,
+        "p95_ms": 17.6,
+        "max_ms": 17.7,
+        "over_25ms": 0,
+        "over_20ms": 0
+      }
+    },
+    {
+      "name": "oil-phone",
+      "at_s": 45,
+      "hud_tr": "LIVE FEED\n128 MS\n588 TICKS/S\n$2K/S ▲\n60 FPS",
+      "matname": "Oil",
+      "err_text": "",
+      "console_errors": [],
+      "page_errors": []
+    }
+  ]
+}
