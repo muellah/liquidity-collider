@@ -1,0 +1,64 @@
+[
+  {
+    "name": "water",
+    "url": "https://muellah.github.io/liquidity-collider/?mat=water",
+    "phone": false,
+    "elapsed_s": 33,
+    "hud_tr": "LIVE FEED\nWS-FEED.EXCHANGE.COINBASE.COM\nPING\n121 MS\nTHROUGHPUT\n82 TICKS/S\nTAPE\n$194/S ▲\nRENDER\n60 FPS",
+    "matname": "Water",
+    "err_text": "",
+    "webgl2": true,
+    "renderer": "ANGLE (Apple, ANGLE Metal Renderer: Apple M3, Unspecified Version)",
+    "title": "Liquidity Collider — BTC-USD",
+    "err_empty": true,
+    "console_errors": [
+      "[error] Failed to load resource: the server responded with a status of 404 ()"
+    ],
+    "page_errors": []
+  },
+  {
+    "name": "smoke",
+    "url": "https://muellah.github.io/liquidity-collider/?mat=smoke",
+    "phone": false,
+    "elapsed_s": 32,
+    "hud_tr": "LIVE FEED\nWS-FEED.EXCHANGE.COINBASE.COM\nPING\n119 MS\nTHROUGHPUT\n138 TICKS/S\nTAPE\n$1K/S ▼\nRENDER\n60 FPS",
+    "matname": "Smoke",
+    "err_text": "",
+    "webgl2": true,
+    "renderer": "ANGLE (Apple, ANGLE Metal Renderer: Apple M3, Unspecified Version)",
+    "title": "Liquidity Collider — BTC-USD",
+    "err_empty": true,
+    "console_errors": [],
+    "page_errors": []
+  },
+  {
+    "name": "ink",
+    "url": "https://muellah.github.io/liquidity-collider/?mat=ink",
+    "phone": false,
+    "elapsed_s": 32,
+    "hud_tr": "LIVE FEED\nWS-FEED.EXCHANGE.COINBASE.COM\nPING\n117 MS\nTHROUGHPUT\n272 TICKS/S\nTAPE\n$797/S ▲\nRENDER\n60 FPS",
+    "matname": "Ink",
+    "err_text": "",
+    "webgl2": true,
+    "renderer": "ANGLE (Apple, ANGLE Metal Renderer: Apple M3, Unspecified Version)",
+    "title": "Liquidity Collider — BTC-USD",
+    "err_empty": true,
+    "console_errors": [],
+    "page_errors": []
+  },
+  {
+    "name": "ink-phone",
+    "url": "https://muellah.github.io/liquidity-collider/?mat=ink",
+    "phone": true,
+    "elapsed_s": 32,
+    "hud_tr": "LIVE FEED\n125 MS\n222 TICKS/S\n$3K/S ▼\n60 FPS",
+    "matname": "Ink",
+    "err_text": "",
+    "webgl2": true,
+    "renderer": "ANGLE (Apple, ANGLE Metal Renderer: Apple M3, Unspecified Version)",
+    "title": "Liquidity Collider — BTC-USD",
+    "err_empty": true,
+    "console_errors": [],
+    "page_errors": []
+  }
+]
