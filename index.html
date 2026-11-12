@@ -559,14 +559,6 @@ void main(){ float L=texture(uP,vUv-vec2(uTexel.x,0)).x, R=texture(uP,vUv+vec2(u
 
   // Dye channels: r = bid density, g = ask density, b = heat (annihilation / shock), a = cavity mask.
   dye: HEAD + COMMON + `uniform sampler2D uDye; uniform float uDt, uBoost, uRelax, uPuff, uFine, uEdge;
-// Drops: each of 10 slots along the edge releases a short burst at its own rhythm, at a new height every time.
-float drops(float y, float t, float seed){
-  float cy = y*10.0, id = floor(cy), f = fract(cy);
-  float period = 1.5+2.3*hash(vec2(id,seed)), ph = t/period + hash(vec2(id+7.3,seed+2.1));
-  float k = floor(ph), u = fract(ph);
-  float dy = f-(0.25+0.5*hash(vec2(id+k*13.7,seed+5.0)));
-  return smoothstep(0.0,0.03,u)*smoothstep(0.26,0.10,u)*exp(-dy*dy/0.035);
-}
 void main(){
   vec4 c = texture(uDye,vUv); float b=c.r, a=c.g, h=c.b, cv=c.a; float x=vUv.x;
   vec4 d = tierData(vUv.y); vec2 f = fronts(vUv,d);
@@ -574,9 +566,9 @@ void main(){
   float inA = smoothstep(f.y-0.004, f.y+0.004, x);
   float sB = 0.15 + 2.4*pow(fbm(vec2(vUv.y*30.0, uTime*0.22)),1.6);
   float sA = 0.15 + 2.4*pow(fbm(vec2(vUv.y*30.0+57.0, uTime*0.22+9.0)),1.6);
-  // Drops: the inflow is clear and the dye is dropped into it at the edge (0 = dye flows in as a stream).
-  sB = mix(sB, 12.0*drops(vUv.y, uTime, 1.0), uFine);
-  sA = mix(sA, 12.0*drops(vUv.y, uTime, 41.0), uFine);
+  // Fine strands: the inflow is concentrated into thin lines (0 = broad streaks).
+  sB = mix(sB, 0.10+9.0*pow(fbm(vec2(vUv.y*85.0, uTime*0.12)),3.0), uFine);
+  sA = mix(sA, 0.10+9.0*pow(fbm(vec2(vUv.y*85.0+57.0, uTime*0.12+9.0)),3.0), uFine);
   // Puffs: the inflow is released in bursts that differ from row to row (0 = steady stream).
   sB *= mix(1.0, 0.3+1.8*smoothstep(0.32,0.70,noise(vec2(vUv.y*6.0, uTime*0.8))), uPuff);
   sA *= mix(1.0, 0.3+1.8*smoothstep(0.32,0.70,noise(vec2(vUv.y*6.0+31.0, uTime*0.8+5.0))), uPuff);
@@ -670,7 +662,7 @@ void main(){
   float hL=H(texture(uDye,uv-vec2(e.x,0))), hR=H(texture(uDye,uv+vec2(e.x,0))),
         hB=H(texture(uDye,uv-vec2(0,e.y))), hT=H(texture(uDye,uv+vec2(0,e.y)));
   float pool = min(length(vec2(hR-hL,hT-hB))*1.6, 1.2);       // ink gathers along the edges of a strand
-  float db = 3.8*smoothstep(0.07,0.45,c.r) + 0.9*c.r, da = 3.8*smoothstep(0.07,0.45,c.g) + 0.9*c.g;
+  float db = 4.2*pow(c.r,1.1), da = 4.2*pow(c.g,1.1);
   vec3 absorb = ((vec3(1.0)-mix(uBid[1],uBid[2],0.6))*db + (vec3(1.0)-mix(uAsk[1],uAsk[2],0.6))*da)*(1.0+pool)
               + vec3(0.05)*(db*db+da*da)                         // dense ink goes dark
               + vec3(0.45,0.55,0.70)*c.b*1.4;                    // front and shock heat leave a sepia stain
@@ -1093,9 +1085,9 @@ const MATERIALS = [
     en: 'Thin, fast and short-lived. It is released in puffs, travels quickly and thins out on the way, so it leaves dark space between plumes. More liquidity means denser puffs that reach further toward the centre. Drawn soft and translucent, with no surface.',
     hu: 'Híg, gyors és rövid életű. Pöffökben szabadul ki, gyorsan halad, és útközben megritkul, ezért a gomolyok között sötét tér marad. Több likviditás sűrűbb pöfföket ad, amelyek messzebb jutnak a közép felé. Puha és áttetsző, felület nélkül.' },
   { id: 'ink', name: { en: 'Ink', hu: 'Tinta' }, prog: 'composite_ink',
-    force: 120, curl: 40, turb: 0.8, velDiss: 0.15, dyeDiss: 0.05, relax: 0.0, puff: 0, fine: 1, edge: 0.07, bloomThr: 9, bloom: 0, bloomE: 0, vig: 0.5, paper: true,
-    en: 'Ink dropped into clear water, on paper. The water flows toward the centre as before, but the colour does not arrive as a stream: drops of ink fall in at the two edges, and the flow carries and unfolds them. More liquidity on a row means darker drops there. The ink fades slowly, so the picture keeps a trace of where it has been. Drawn flat, with no surface or highlights.',
-    hu: 'Tiszta vízbe cseppentett tinta, papíron. A víz ugyanúgy áramlik a közép felé, de a szín nem folyamként érkezik: a két szélen tintacseppek hullanak bele, és az áramlás viszi és bontja szét őket. Ahol több a likviditás, ott sötétebbek a cseppek. A tinta lassan halványul, ezért a kép megőrzi, merre járt. Lapos, felület és csillogás nélkül.' }
+    force: 150, curl: 34, turb: 1.3, velDiss: 0.1, dyeDiss: 0.03, relax: 0.3, puff: 0, fine: 1, edge: 0.18, bloomThr: 9, bloom: 0, bloomE: 0, vig: 0.5, paper: true,
+    en: 'Ink on paper. It enters as thin strands that the flow folds into marbled lines, and it fades slowly, so the picture keeps a trace of where the fluid has been. The background is light and the ink darkens it: the more liquidity, the darker the strand. Drawn flat, with no surface or highlights.',
+    hu: 'Tinta papíron. Vékony szálakban érkezik, amelyeket az áramlás márványos vonalakká hajtogat, és lassan halványul, ezért a kép megőrzi, merre járt a folyadék. A háttér világos, a tinta sötétíti: minél több a likviditás, annál sötétebb a szál. Lapos, felület és csillogás nélkül.' }
 ];
 let matIdx = 0;
 try { matIdx = +localStorage.getItem('lc-mat') || 0; } catch (e) {}
@@ -1211,7 +1203,7 @@ function simulate(dt) {
   tex('uVelocity', vel.read, 0); tex('uSource', vel.read, 0); f1('uDissipation', MAT.velDiss); draw(vel.write); vel.swap();
   tex('uVelocity', vel.read, 0); tex('uSource', dye.read, 1); f1('uDissipation', MAT.dyeDiss); draw(dye.write); dye.swap();
 
-  use(P.dye); setCommon(); tex('uDye', dye.read, 0); f1('uDt', dt); f1('uBoost', bootT < 2 ? 3 : 0); f1('uRelax', MAT.relax); f1('uPuff', MAT.puff); f1('uFine', MAT.fine); f1('uEdge', MAT.fine ? Math.min(0.2, MAT.edge * Math.max(1, 1.3 / aspect)) : MAT.edge);
+  use(P.dye); setCommon(); tex('uDye', dye.read, 0); f1('uDt', dt); f1('uBoost', bootT < 2 ? 3 : 0); f1('uRelax', MAT.relax); f1('uPuff', MAT.puff); f1('uFine', MAT.fine); f1('uEdge', MAT.edge);
   draw(dye.write); dye.swap();
 }
 
