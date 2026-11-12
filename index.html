@@ -568,7 +568,7 @@ void main(){ float L=texture(uP,vUv-vec2(uTexel.x,0)).x, R=texture(uP,vUv+vec2(u
   o = vec4(texture(uVel,vUv).xy - vec2(R-L,T-B),0,1); }`,
 
   // Dye channels: r = bid density, g = ask density, b = heat (annihilation / shock), a = cavity mask.
-  dye: HEAD + COMMON + `uniform sampler2D uDye; uniform float uDt, uBoost, uRelax, uPuff, uFine, uEdge, uBands;
+  dye: HEAD + COMMON + `uniform sampler2D uDye; uniform float uDt, uBoost, uRelax, uPuff, uFine, uEdge, uBands, uCoh; uniform vec2 uDyeTexel;
 void main(){
   vec4 c = texture(uDye,vUv); float b=c.r, a=c.g, h=c.b, cv=c.a; float x=vUv.x;
   vec4 d = tierData(vUv.y); vec2 f = fronts(vUv,d);
@@ -587,6 +587,11 @@ void main(){
   // Density on every row is pulled toward that tier's liquidity: fast at the inflow edge, slow elsewhere.
   b += (d.r*sB - b)*(1.0-exp(-(5.0*edgeB+uRelax+uBoost)*relax*uDt))*inB;
   a += (d.g*sA - a)*(1.0-exp(-(5.0*edgeA+uRelax+uBoost)*relax*uDt))*inA;
+  if(uCoh>0.0){ vec2 t2 = uDyeTexel*3.0;
+    vec2 avg = 0.25*(texture(uDye,vUv+vec2(t2.x,0)).rg + texture(uDye,vUv-vec2(t2.x,0)).rg
+                   + texture(uDye,vUv+vec2(0,t2.y)).rg + texture(uDye,vUv-vec2(0,t2.y)).rg);
+    b += uCoh*((avg.r-b) + 1.6*b*(1.0-b)*(b-0.33));      // above 0.33 it fills up, below it empties
+    a += uCoh*((avg.g-a) + 1.6*a*(1.0-a)*(a-0.33)); }
   // Fluid pushed past its own front is annihilated in the spread and releases heat there.
   float kb = b*(1.0-exp(-16.0*uDt*(1.0-inB))), ka = a*(1.0-exp(-16.0*uDt*(1.0-inA)));
   b -= kb; a -= ka;
@@ -748,18 +753,21 @@ vec4 soft(vec2 uv, float r){ vec2 e = uTexel*r;
 float envf(vec2 r){                                    // dark floor, bright sky, one hard light strip, soft side lights
   return 0.03 + 0.24*smoothstep(-0.15,0.5,r.y) + 0.95*smoothstep(0.52,0.58,r.y)*(1.0-smoothstep(0.76,0.82,r.y))
        + 0.10*smoothstep(-0.25,-0.65,r.y) + 0.20*pow(0.5+0.5*sin(r.x*9.0+0.7),8.0); }
+float D(vec4 c){ return c.r+c.g; }
 void main(){
   vec2 uv = vUv; float ring = shockWarp(uv);
-  vec2 e = uTexel*5.0;
-  vec4 c = soft(uv, 2.0); float d = c.r+c.g;
-  float dL=H(soft(uv-vec2(e.x,0),3.5)), dR=H(soft(uv+vec2(e.x,0),3.5)),
-        dB=H(soft(uv-vec2(0,e.y),3.5)), dT=H(soft(uv+vec2(0,e.y),3.5));
-  const float TH = 0.26;
-  float surf = smoothstep(TH, TH+0.035, d);                         // sharp edge
-  float dome = smoothstep(TH, TH+0.45, d);                          // 0 at the rim, 1 on the flat top
-  vec3 Nn = normalize(vec3(-vec2(dR-dL,dT-dB)*mix(7.0,1.0,dome), 1.0));   // steep at the rim: a rounded bead edge
+  vec4 c = (soft(uv,2.5)+soft(uv,5.0))*0.5; float d = D(c);
+  vec2 e = uTexel*6.0;
+  float dL=D(soft(uv-vec2(e.x,0),4.0)), dR=D(soft(uv+vec2(e.x,0),4.0)),
+        dB=D(soft(uv-vec2(0,e.y),4.0)), dT=D(soft(uv+vec2(0,e.y),4.0));
+  const float TH = 0.5;
+  float surf = smoothstep(TH-0.03, TH+0.03, d);                     // sharp edge
+  float dome = smoothstep(TH, 0.95, d);                             // 0 at the rim, 1 on the flat top
+  vec2 q = uv*vec2(uAspect,1.0)*4.0;
+  vec2 wob = vec2(noise(q+vec2(uTime*0.05,0.0)), noise(q+vec2(7.3,-uTime*0.04)))-0.5;   // the top is not perfectly flat
+  vec3 Nn = normalize(vec3(-vec2(dR-dL,dT-dB)*mix(6.5,0.5,dome) + wob*0.9*dome, 1.0));   // steep rim, near-flat top
   vec3 V = vec3(0,0,1); vec3 Rf = reflect(-V,Nn);
-  float m = envf(Rf.xy*1.6 + vec2(0.0,0.12));
+  float m = envf(Rf.xy*1.6 + (uv-0.5)*vec2(0.55,0.75) + vec2(0.0,0.12));   // the flat top mirrors a slowly varying room
   float side = c.g/(d+1e-4);                                        // 0 = bids, 1 = asks
   vec3 tintc = mix(uBid[2],uAsk[2],side);
   vec3 metal = m*mix(vec3(0.92), tintc*1.5+0.08, 0.5);
@@ -1203,7 +1211,7 @@ const MATERIALS = [
     force: 300, curl: 0, turb: 0, visc: 1.0, shear: 0.6, velDiss: 1.6, dyeDiss: 0.05, relax: 0.25, puff: 0, fine: 0, edge: 0.18, bands: 5, bloomThr: 0.75, bloom: 0.09, bloomE: 0.1, vig: 1.15, paper: false,
     en: 'The thickest material. It creeps toward the centre in broad rounded tongues and folds slowly where it is pushed. Drawn as a dull, translucent gel with a soft inner light: thicker parts are a little brighter, the edges catch the light, and the highlights are wide and soft. More liquidity means a thicker, brighter tongue that pushes further.',
     hu: 'A legsűrűbb anyag. Széles, lekerekített nyelvekben kúszik a közép felé, és lassan gyűrődik, ahol nyomás éri. Tompa, áttetsző zseléként jelenik meg, lágy belső fénnyel: a vastagabb részek kicsit fényesebbek, a szélek megkapják a fényt, a csillogás pedig széles és lágy. Több likviditás vastagabb, fényesebb nyelvet jelent, amely messzebbre nyomul.' },
-  { id: 'mercury', name: { en: 'Mercury', hu: 'Higany' }, prog: 'composite_mercury', cover: true,
+  { id: 'mercury', name: { en: 'Mercury', hu: 'Higany' }, prog: 'composite_mercury', cover: true, coh: 0.45,
     force: 170, curl: 10, turb: 0.6, visc: 0.2, shear: 1, velDiss: 0.3, dyeDiss: 0.1, relax: 0.4, puff: 0, fine: 0, edge: 0.18, bands: 14, bloomThr: 0.8, bloom: 0.1, bloomE: 0.1, vig: 1.15, paper: false,
     en: 'Liquid metal. It has a sharp edge and a mirror surface: where there is enough of it the metal forms a solid sheet, and where there is little it breaks into separate beads. The palette only tints the reflections, so here the amount is read from how much of a row the metal covers, not from brightness. It looks like mercury but does not pull itself into round drops the way real mercury does.',
     hu: 'Folyékony fém. Éles széle és tükröző felülete van: ahol elég van belőle, összefüggő lemezt alkot, ahol kevés, ott különálló gyöngyökre szakad. A paletta csak a tükröződést színezi, ezért itt a mennyiséget az mutatja, hogy a fém egy sorból mennyit fed le, nem a fényesség. Higanynak látszik, de nem húzódik magától kerek cseppekbe, ahogy a valódi higany.' }
@@ -1323,7 +1331,7 @@ function simulate(dt) {
   tex('uVelocity', vel.read, 0); tex('uSource', vel.read, 0); f1('uDissipation', MAT.velDiss); draw(vel.write); vel.swap();
   tex('uVelocity', vel.read, 0); tex('uSource', dye.read, 1); f1('uDissipation', MAT.dyeDiss); draw(dye.write); dye.swap();
 
-  use(P.dye); setCommon(); tex('uDye', dye.read, 0); f1('uDt', dt); f1('uBoost', bootT < 2 ? 3 : 0); f1('uRelax', MAT.relax); f1('uPuff', MAT.puff); f1('uFine', MAT.fine); f1('uEdge', MAT.edge); f1('uBands', MAT.bands);
+  use(P.dye); setCommon(); tex('uDye', dye.read, 0); f1('uDt', dt); f1('uBoost', bootT < 2 ? 3 : 0); f1('uRelax', MAT.relax); f1('uPuff', MAT.puff); f1('uFine', MAT.fine); f1('uEdge', MAT.edge); f1('uBands', MAT.bands); f1('uCoh', MAT.coh || 0); f2('uDyeTexel', dye.texel[0], dye.texel[1]);
   draw(dye.write); dye.swap();
 }
 
