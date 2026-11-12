@@ -723,13 +723,13 @@ void main(){
   vec3 Nn = normalize(vec3(-g*1.3, 1.0));
   vec4 c = (soft(uv,4.0) + soft(uv,1.5))*0.5; float d = H(c);
   float body = smoothstep(0.04,0.4,d);
-  vec3 base = bidRamp(c.r)*(1.0-exp(-2.2*c.r)) + askRamp(c.g)*(1.0-exp(-2.2*c.g));
+  vec3 base = bidRamp(c.r*0.72)*(1.0-exp(-2.2*c.r)) + askRamp(c.g*0.72)*(1.0-exp(-2.2*c.g));
   vec3 tint = base/(max(base.r,max(base.g,base.b))+1e-3);
-  vec3 col = base*(0.55+0.55*d);                                   // glows from inside: thicker is brighter
-  col += tint*body*smoothstep(0.02,0.16,length(g))*0.38;           // edges light up as if lit from behind
+  vec3 col = base*(0.40+0.30*d);                                   // glows from inside: thicker is brighter
+  col += tint*body*smoothstep(0.02,0.16,length(g))*0.22;           // edges light up as if lit from behind
   vec3 L1 = normalize(vec3(-0.5,0.6,0.62)), V = vec3(0,0,1);
   float nh = max(dot(Nn,normalize(L1+V)),0.0);
-  col += body*(pow(nh,14.0)*0.30*(tint+0.4) + pow(nh,140.0)*0.9);  // one wide soft highlight, one small wet one
+  col += body*(pow(nh,14.0)*0.20*(tint+0.3) + pow(nh,140.0)*0.55);  // one wide soft highlight, one small wet one
   col += heatCol(c.b);
   col += backdrop(uv.y)*(1.0-body*0.8);
   col += ring*vec3(1.0,0.93,0.85)*0.35;
@@ -1152,13 +1152,13 @@ const MATERIALS = [
     en: 'Ink on paper. It enters as thin strands that the flow folds into marbled lines, and it fades slowly, so the picture keeps a trace of where the fluid has been. The background is light and the ink darkens it: the more liquidity, the darker the strand. Drawn flat, with no surface or highlights.',
     hu: 'Tinta papíron. Vékony szálakban érkezik, amelyeket az áramlás márványos vonalakká hajtogat, és lassan halványul, ezért a kép megőrzi, merre járt a folyadék. A háttér világos, a tinta sötétíti: minél több a likviditás, annál sötétebb a szál. Lapos, felület és csillogás nélkül.' },
   { id: 'oil', name: { en: 'Oil', hu: 'Olaj' }, prog: 'composite_oil',
-    force: 235, curl: 0, turb: 0.12, visc: 0.85, shear: 0.12, velDiss: 1.0, dyeDiss: 0.06, relax: 0.4, puff: 0, fine: 0, edge: 0.18, bands: 9, bloomThr: 0.75, bloom: 0.1, bloomE: 0.1, vig: 1.15, paper: false,
-    en: 'Thick and sluggish. Small eddies die out, so it moves in broad, smooth bands and large slow swirls. Drawn as a dark, glossy layer with wide soft highlights, and a rainbow sheen where the layer is thin, the way an oil film looks on water. Liquidity still sets how much there is on each row and how hard it pushes.',
-    hu: 'Sűrű és lomha. A kis örvények elhalnak, ezért széles, sima sávokban és nagy, lassú örvényekben mozog. Sötét, fényes rétegként jelenik meg, széles, lágy csillogással, és ahol a réteg vékony, szivárványos fénye van, mint az olajfoltnak a vízen. Azt, hogy egy sorban mennyi van belőle és milyen erővel nyomul, továbbra is a likviditás adja.' },
+    force: 200, curl: 4, turb: 0.7, visc: 0.35, shear: 0.45, velDiss: 0.5, dyeDiss: 0.06, relax: 0.4, puff: 0, fine: 0, edge: 0.18, bands: 9, bloomThr: 0.75, bloom: 0.1, bloomE: 0.1, vig: 1.15, paper: false,
+    en: 'Thicker than water, thinner than honey. Small eddies die out, so it moves in broad, smooth bands that bend into large slow swirls. Drawn as a dark, glossy layer with wide soft highlights, and a rainbow sheen where the layer is thin, the way an oil film looks on water. Liquidity still sets how much there is on each row and how hard it pushes.',
+    hu: 'A víznél sűrűbb, a méznél hígabb. A kis örvények elhalnak, ezért széles, sima sávokban mozog, amelyek nagy, lassú örvényekbe hajlanak. Sötét, fényes rétegként jelenik meg, széles, lágy csillogással, és ahol a réteg vékony, szivárványos fénye van, mint az olajfoltnak a vízen. Azt, hogy egy sorban mennyi van belőle és milyen erővel nyomul, továbbra is a likviditás adja.' },
   { id: 'honey', name: { en: 'Honey', hu: 'Méz' }, prog: 'composite_honey',
-    force: 300, curl: 0, turb: 0, visc: 1.0, shear: 0.6, velDiss: 1.6, dyeDiss: 0.05, relax: 0.25, puff: 0, fine: 0, edge: 0.18, bands: 5, bloomThr: 0.55, bloom: 0.2, bloomE: 0.1, vig: 1.15, paper: false,
-    en: 'The thickest material. It creeps toward the centre in broad rounded tongues and folds slowly where it is pushed. Drawn as a translucent gel that glows from inside: thicker parts are brighter, the edges light up as if lit from behind, and the highlights are wide and soft. More liquidity means a thicker, brighter tongue that pushes further.',
-    hu: 'A legsűrűbb anyag. Széles, lekerekített nyelvekben kúszik a közép felé, és lassan gyűrődik, ahol nyomás éri. Áttetsző, belülről világító zseléként jelenik meg: a vastagabb részek fényesebbek, a szélek úgy izzanak fel, mintha hátulról kapnák a fényt, a csillogás pedig széles és lágy. Több likviditás vastagabb, fényesebb nyelvet jelent, amely messzebbre nyomul.' }
+    force: 300, curl: 0, turb: 0, visc: 1.0, shear: 0.6, velDiss: 1.6, dyeDiss: 0.05, relax: 0.25, puff: 0, fine: 0, edge: 0.18, bands: 5, bloomThr: 0.75, bloom: 0.09, bloomE: 0.1, vig: 1.15, paper: false,
+    en: 'The thickest material. It creeps toward the centre in broad rounded tongues and folds slowly where it is pushed. Drawn as a dull, translucent gel with a soft inner light: thicker parts are a little brighter, the edges catch the light, and the highlights are wide and soft. More liquidity means a thicker, brighter tongue that pushes further.',
+    hu: 'A legsűrűbb anyag. Széles, lekerekített nyelvekben kúszik a közép felé, és lassan gyűrődik, ahol nyomás éri. Tompa, áttetsző zseléként jelenik meg, lágy belső fénnyel: a vastagabb részek kicsit fényesebbek, a szélek megkapják a fényt, a csillogás pedig széles és lágy. Több likviditás vastagabb, fényesebb nyelvet jelent, amely messzebbre nyomul.' }
 ];
 let matIdx = 0;
 try { matIdx = +localStorage.getItem('lc-mat') || 0; } catch (e) {}
