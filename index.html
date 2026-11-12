@@ -510,14 +510,18 @@ const FS = {
 void main(){ vec2 c = vUv - uDt*texture(uVelocity,vUv).xy*uTexel; o = texture(uSource,c)/(1.0+uDissipation*uDt); }`,
 
   // Body forces: per-tier inflow toward the centre, turbulence from tape momentum, expanding shock rings.
-  force: HEAD + COMMON + `uniform sampler2D uVel; uniform float uDt, uForce, uTurb; uniform vec4 uShock[6];
+  force: HEAD + COMMON + `uniform sampler2D uVel; uniform float uDt, uForce, uTurb, uVisc, uShear; uniform vec2 uTexel; uniform vec4 uShock[6];
 void main(){
   vec2 v = texture(uVel,vUv).xy;
+  if(uVisc>0.0){ vec2 avg = 0.25*(texture(uVel,vUv+vec2(uTexel.x,0)).xy + texture(uVel,vUv-vec2(uTexel.x,0)).xy
+                               + texture(uVel,vUv+vec2(0,uTexel.y)).xy + texture(uVel,vUv-vec2(0,uTexel.y)).xy);
+    v = mix(v, avg, uVisc); }
   vec4 d = tierData(vUv.y); vec2 f = fronts(vUv,d);
   float lb = smoothstep(f.x+0.02, f.x-0.06, vUv.x);
   float la = smoothstep(f.y-0.02, f.y+0.06, vUv.x);
   float sb = 0.45 + 1.1*noise(vec2(vUv.y*38.0, uTime*0.45));
   float sa = 0.45 + 1.1*noise(vec2(vUv.y*38.0+91.0, uTime*0.45+13.0));
+  sb = mix(1.0, sb, uShear); sa = mix(1.0, sa, uShear);
   v.x += uForce*uDt*(d.r*lb*sb - d.g*la*sa);
   vec2 p = vec2(vUv.x*uAspect, vUv.y)*5.0 + vec2(0.0,uTime*0.12); float e = 0.02;
   float ny = noise(p+vec2(0,e))-noise(p-vec2(0,e)), nx = noise(p+vec2(e,0))-noise(p-vec2(e,0));
@@ -696,7 +700,7 @@ void main(){
   col += body*(s1*1.1 + s2*0.35*tint);
   float film = smoothstep(0.02,0.06,d)*smoothstep(0.30,0.10,d)*smoothstep(0.012,0.06,length(vec2(hR-hL,hT-hB)));   // only where a thin layer ends
   vec3 rb = irid(d*2.6 + Nn.x*0.7 + Nn.y*0.5 + uTime*0.03);
-  col += rb*(film*0.30 + body*pow(1.0-Nn.z,1.6)*0.16);
+  col += rb*(film*0.13 + body*pow(1.0-Nn.z,1.6)*0.10);
   col += heatCol(c.b);
   col += backdrop(uv.y)*(1.0-body*0.8);
   col += ring*vec3(1.0,0.93,0.85)*0.35;
@@ -1107,19 +1111,19 @@ document.getElementById('pal').onclick = () => { setPalette(palIdx + 1); hideTip
 /* ---------- materials: same data mapping, different motion and rendering ---------- */
 const MATERIALS = [
   { id: 'water', name: { en: 'Water', hu: 'Víz' }, prog: 'composite',
-    force: 150, curl: 24, turb: 1, velDiss: 0.2, dyeDiss: 0.1, relax: 0.4, puff: 0, fine: 0, edge: 0.18, bands: 30, bloomThr: 0.7, bloom: 0.13, bloomE: 0.1, vig: 1.15, paper: false,
+    force: 150, curl: 24, turb: 1, visc: 0, shear: 1, velDiss: 0.2, dyeDiss: 0.1, relax: 0.4, puff: 0, fine: 0, edge: 0.18, bands: 30, bloomThr: 0.7, bloom: 0.13, bloomE: 0.1, vig: 1.15, paper: false,
     en: 'The baseline: a clear liquid with a glassy surface that bends and reflects light. Medium thickness, medium swirl. Differences in liquidity are easiest to read here.',
     hu: 'A kiinduló anyag: tiszta folyadék üveges felülettel, amely megtöri és tükrözi a fényt. Közepesen sűrű, közepesen örvénylik. A likviditás különbségei itt olvashatók a legkönnyebben.' },
   { id: 'smoke', name: { en: 'Smoke', hu: 'Füst' }, prog: 'composite_smoke',
-    force: 215, curl: 48, turb: 2.0, velDiss: 0.08, dyeDiss: 0.45, relax: 0.2, puff: 1, fine: 0, edge: 0.18, bands: 30, bloomThr: 0.85, bloom: 0.07, bloomE: 0.1, vig: 1.15, paper: false,
+    force: 215, curl: 48, turb: 2.0, visc: 0, shear: 1, velDiss: 0.08, dyeDiss: 0.45, relax: 0.2, puff: 1, fine: 0, edge: 0.18, bands: 30, bloomThr: 0.85, bloom: 0.07, bloomE: 0.1, vig: 1.15, paper: false,
     en: 'Thin, fast and short-lived. It is released in puffs, travels quickly and thins out on the way, so it leaves dark space between plumes. More liquidity means denser puffs that reach further toward the centre. Drawn soft and translucent, with no surface.',
     hu: 'Híg, gyors és rövid életű. Pöffökben szabadul ki, gyorsan halad, és útközben megritkul, ezért a gomolyok között sötét tér marad. Több likviditás sűrűbb pöfföket ad, amelyek messzebb jutnak a közép felé. Puha és áttetsző, felület nélkül.' },
   { id: 'ink', name: { en: 'Ink', hu: 'Tinta' }, prog: 'composite_ink',
-    force: 150, curl: 34, turb: 1.3, velDiss: 0.1, dyeDiss: 0.03, relax: 0.3, puff: 0, fine: 1, edge: 0.18, bands: 30, bloomThr: 9, bloom: 0, bloomE: 0, vig: 0.5, paper: true,
+    force: 150, curl: 34, turb: 1.3, visc: 0, shear: 1, velDiss: 0.1, dyeDiss: 0.03, relax: 0.3, puff: 0, fine: 1, edge: 0.18, bands: 30, bloomThr: 9, bloom: 0, bloomE: 0, vig: 0.5, paper: true,
     en: 'Ink on paper. It enters as thin strands that the flow folds into marbled lines, and it fades slowly, so the picture keeps a trace of where the fluid has been. The background is light and the ink darkens it: the more liquidity, the darker the strand. Drawn flat, with no surface or highlights.',
     hu: 'Tinta papíron. Vékony szálakban érkezik, amelyeket az áramlás márványos vonalakká hajtogat, és lassan halványul, ezért a kép megőrzi, merre járt a folyadék. A háttér világos, a tinta sötétíti: minél több a likviditás, annál sötétebb a szál. Lapos, felület és csillogás nélkül.' },
   { id: 'oil', name: { en: 'Oil', hu: 'Olaj' }, prog: 'composite_oil',
-    force: 185, curl: 6, turb: 0.35, velDiss: 0.7, dyeDiss: 0.06, relax: 0.4, puff: 0, fine: 0, edge: 0.18, bands: 9, bloomThr: 0.75, bloom: 0.1, bloomE: 0.1, vig: 1.15, paper: false,
+    force: 185, curl: 0, turb: 0.25, visc: 0.5, shear: 0.25, velDiss: 0.7, dyeDiss: 0.06, relax: 0.4, puff: 0, fine: 0, edge: 0.18, bands: 9, bloomThr: 0.75, bloom: 0.1, bloomE: 0.1, vig: 1.15, paper: false,
     en: 'Thick and sluggish. Small eddies die out, so it moves in broad, smooth bands and large slow swirls. Drawn as a dark, glossy layer with wide soft highlights, and a rainbow sheen where the layer is thin, the way an oil film looks on water. Liquidity still sets how much there is on each row and how hard it pushes.',
     hu: 'Sűrű és lomha. A kis örvények elhalnak, ezért széles, sima sávokban és nagy, lassú örvényekben mozog. Sötét, fényes rétegként jelenik meg, széles, lágy csillogással, és ahol a réteg vékony, szivárványos fénye van, mint az olajfoltnak a vízen. Azt, hogy egy sorban mennyi van belőle és milyen erővel nyomul, továbbra is a likviditás adja.' }
 ];
@@ -1220,6 +1224,7 @@ function simulate(dt) {
   }
 
   use(P.force); setCommon(); tex('uVel', vel.read, 0); f1('uDt', dt); f1('uForce', MAT.force); f1('uTurb', S.turb * MAT.turb);
+  f1('uVisc', MAT.visc); f1('uShear', MAT.shear); f2('uTexel', vel.texel[0], vel.texel[1]);
   gl.uniform4fv(cur.u.uShock, shockBuf); draw(vel.write); vel.swap();
 
   use(P.curl); tex('uVel', vel.read, 0); f2('uTexel', vel.texel[0], vel.texel[1]); draw(curlT);
@@ -1283,15 +1288,16 @@ function hud() {
 }
 setInterval(hud, 100);
 
+const WARP = Math.max(1, Math.min(8, +params.get('warp') || 1));   // ?warp=N is a test aid, not a feature
 let last = performance.now();
 function frame(t) {
   requestAnimationFrame(frame);
   const real = (t - last) / 1000; last = t;
   if (real > 0 && real < 1) S.fps += (1 / real - S.fps) * 0.05;
   const dt = clamp(real, 1 / 120, 1 / 30);
-  simTime += dt; bootT += dt;
+  simTime += dt * WARP; bootT += dt * WARP;
   resize();
-  if (S.got) { updateData(dt); simulate(dt); }
+  if (S.got) for (let i = 0; i < WARP; i++) { updateData(dt); simulate(dt); }
   render();
 }
 requestAnimationFrame(frame);
