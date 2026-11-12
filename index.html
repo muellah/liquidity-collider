@@ -555,8 +555,8 @@ void main(){
   float sB = 0.15 + 2.4*pow(fbm(vec2(vUv.y*30.0, uTime*0.22)),1.6);
   float sA = 0.15 + 2.4*pow(fbm(vec2(vUv.y*30.0+57.0, uTime*0.22+9.0)),1.6);
   // Puffs: the inflow is released in bursts that differ from row to row (0 = steady stream).
-  sB *= mix(1.0, 2.2*smoothstep(0.38,0.72,noise(vec2(vUv.y*6.0, uTime*0.8))), uPuff);
-  sA *= mix(1.0, 2.2*smoothstep(0.38,0.72,noise(vec2(vUv.y*6.0+31.0, uTime*0.8+5.0))), uPuff);
+  sB *= mix(1.0, 0.3+1.8*smoothstep(0.32,0.70,noise(vec2(vUv.y*6.0, uTime*0.8))), uPuff);
+  sA *= mix(1.0, 0.3+1.8*smoothstep(0.32,0.70,noise(vec2(vUv.y*6.0+31.0, uTime*0.8+5.0))), uPuff);
   float edgeB = smoothstep(0.18,0.0,x), edgeA = smoothstep(0.82,1.0,x);
   float relax = 1.0-0.85*cv;
   // Density on every row is pulled toward that tier's liquidity: fast at the inflow edge, slow elsewhere.
@@ -629,7 +629,7 @@ void main(){
   float hL=H(soft(uv-vec2(e.x,0),2.5)), hR=H(soft(uv+vec2(e.x,0),2.5)),
         hB=H(soft(uv-vec2(0,e.y),2.5)), hT=H(soft(uv+vec2(0,e.y),2.5));
   float lit = clamp(0.58 - dot(vec2(hR-hL,hT-hB), normalize(vec2(-0.6,0.75)))*1.1, 0.0, 1.0);
-  float ab = 1.0-exp(-2.6*pow(c.r,1.6)), aa = 1.0-exp(-2.6*pow(c.g,1.6));
+  float ab = 1.0-exp(-2.5*pow(c.r,1.25)), aa = 1.0-exp(-2.5*pow(c.g,1.25));
   vec3 col = ab*mix(uBid[1]*0.45, mix(uBid[2],uBid[3],0.4), lit)
            + aa*mix(uAsk[1]*0.45, mix(uAsk[2],uAsk[3],0.4), lit);
   col += heatCol(c.b)*0.7;
@@ -1034,7 +1034,7 @@ const MATERIALS = [
     en: 'The baseline: a clear liquid with a glassy surface that bends and reflects light. Medium thickness, medium swirl. Differences in liquidity are easiest to read here.',
     hu: 'A kiinduló anyag: tiszta folyadék üveges felülettel, amely megtöri és tükrözi a fényt. Közepesen sűrű, közepesen örvénylik. A likviditás különbségei itt olvashatók a legkönnyebben.' },
   { id: 'smoke', name: { en: 'Smoke', hu: 'Füst' }, prog: 'composite_smoke',
-    force: 215, curl: 48, turb: 2.0, velDiss: 0.08, dyeDiss: 0.8, relax: 0.07, puff: 1, bloomThr: 0.85, bloom: 0.07,
+    force: 215, curl: 48, turb: 2.0, velDiss: 0.08, dyeDiss: 0.45, relax: 0.2, puff: 1, bloomThr: 0.85, bloom: 0.07,
     en: 'Thin, fast and short-lived. It is released in puffs, travels quickly and thins out on the way, so it leaves dark space between plumes. More liquidity means denser puffs that reach further toward the centre. Drawn soft and translucent, with no surface.',
     hu: 'Híg, gyors és rövid életű. Pöffökben szabadul ki, gyorsan halad, és útközben megritkul, ezért a gomolyok között sötét tér marad. Több likviditás sűrűbb pöfföket ad, amelyek messzebb jutnak a közép felé. Puha és áttetsző, felület nélkül.' }
 ];
