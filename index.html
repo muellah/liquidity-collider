@@ -558,14 +558,14 @@ void main(){ float L=texture(uP,vUv-vec2(uTexel.x,0)).x, R=texture(uP,vUv+vec2(u
   o = vec4(texture(uVel,vUv).xy - vec2(R-L,T-B),0,1); }`,
 
   // Dye channels: r = bid density, g = ask density, b = heat (annihilation / shock), a = cavity mask.
-  dye: HEAD + COMMON + `uniform sampler2D uDye; uniform float uDt, uBoost, uRelax, uPuff, uFine, uEdge;
+  dye: HEAD + COMMON + `uniform sampler2D uDye; uniform float uDt, uBoost, uRelax, uPuff, uFine, uEdge, uBands;
 void main(){
   vec4 c = texture(uDye,vUv); float b=c.r, a=c.g, h=c.b, cv=c.a; float x=vUv.x;
   vec4 d = tierData(vUv.y); vec2 f = fronts(vUv,d);
   float inB = smoothstep(f.x+0.004, f.x-0.004, x);
   float inA = smoothstep(f.y-0.004, f.y+0.004, x);
-  float sB = 0.15 + 2.4*pow(fbm(vec2(vUv.y*30.0, uTime*0.22)),1.6);
-  float sA = 0.15 + 2.4*pow(fbm(vec2(vUv.y*30.0+57.0, uTime*0.22+9.0)),1.6);
+  float sB = 0.15 + 2.4*pow(fbm(vec2(vUv.y*uBands, uTime*0.22)),1.6);
+  float sA = 0.15 + 2.4*pow(fbm(vec2(vUv.y*uBands+57.0, uTime*0.22+9.0)),1.6);
   // Fine strands: the inflow is concentrated into thin lines (0 = broad streaks).
   sB = mix(sB, 0.10+9.0*pow(fbm(vec2(vUv.y*85.0, uTime*0.12)),3.0), uFine);
   sA = mix(sA, 0.10+9.0*pow(fbm(vec2(vUv.y*85.0+57.0, uTime*0.12+9.0)),3.0), uFine);
@@ -670,6 +670,36 @@ void main(){
   paper *= 1.0-0.05*tickAt(uv.y);
   vec3 col = paper*exp(-absorb);
   col *= 1.0-0.28*min(ring,1.0);
+  o = vec4(col,1.0);
+}`,
+
+  // Scene, oil: a dark glossy layer. Smooth normals, wide soft highlights, thin-film colours where the layer is thin.
+  composite_oil: HEAD + COMMON + SCENE + `
+vec4 soft(vec2 uv, float r){ vec2 e = uTexel*r;
+  return (texture(uDye,uv)*2.0 + texture(uDye,uv+vec2(e.x,0)) + texture(uDye,uv-vec2(e.x,0))
+        + texture(uDye,uv+vec2(0,e.y)) + texture(uDye,uv-vec2(0,e.y)))/6.0; }
+vec3 irid(float t){ return 0.5+0.5*cos(6.2832*(t+vec3(0.0,0.33,0.67))); }
+void main(){
+  vec2 uv = vUv; float ring = shockWarp(uv);
+  vec2 e = uTexel*5.0;
+  float hL=H(soft(uv-vec2(e.x,0),3.0)), hR=H(soft(uv+vec2(e.x,0),3.0)),
+        hB=H(soft(uv-vec2(0,e.y),3.0)), hT=H(soft(uv+vec2(0,e.y),3.0));
+  vec3 Nn = normalize(vec3(-vec2(hR-hL,hT-hB)*1.6, 1.0));
+  vec4 c = soft(uv, 1.5); float d = H(c);
+  float body = smoothstep(0.04,0.35,d);
+  vec3 base = bidRamp(c.r*0.75)*(1.0-exp(-2.6*c.r)) + askRamp(c.g*0.75)*(1.0-exp(-2.6*c.g));
+  vec3 col = base*0.55;
+  vec3 L1 = normalize(vec3(-0.5,0.6,0.62)), L2 = normalize(vec3(0.6,-0.4,0.55)), V = vec3(0,0,1);
+  col *= 0.55+0.75*max(dot(Nn,L1),0.0);
+  float s1 = pow(max(dot(Nn,normalize(L1+V)),0.0),44.0), s2 = pow(max(dot(Nn,normalize(L2+V)),0.0),20.0);
+  vec3 tint = base/(max(base.r,max(base.g,base.b))+1e-3);
+  col += body*(s1*1.1 + s2*0.35*tint);
+  float film = smoothstep(0.02,0.06,d)*smoothstep(0.30,0.10,d)*smoothstep(0.012,0.06,length(vec2(hR-hL,hT-hB)));   // only where a thin layer ends
+  vec3 rb = irid(d*2.6 + Nn.x*0.7 + Nn.y*0.5 + uTime*0.03);
+  col += rb*(film*0.30 + body*pow(1.0-Nn.z,1.6)*0.16);
+  col += heatCol(c.b);
+  col += backdrop(uv.y)*(1.0-body*0.8);
+  col += ring*vec3(1.0,0.93,0.85)*0.35;
   o = vec4(col,1.0);
 }`,
 
@@ -1077,17 +1107,21 @@ document.getElementById('pal').onclick = () => { setPalette(palIdx + 1); hideTip
 /* ---------- materials: same data mapping, different motion and rendering ---------- */
 const MATERIALS = [
   { id: 'water', name: { en: 'Water', hu: 'Víz' }, prog: 'composite',
-    force: 150, curl: 24, turb: 1, velDiss: 0.2, dyeDiss: 0.1, relax: 0.4, puff: 0, fine: 0, edge: 0.18, bloomThr: 0.7, bloom: 0.13, bloomE: 0.1, vig: 1.15, paper: false,
+    force: 150, curl: 24, turb: 1, velDiss: 0.2, dyeDiss: 0.1, relax: 0.4, puff: 0, fine: 0, edge: 0.18, bands: 30, bloomThr: 0.7, bloom: 0.13, bloomE: 0.1, vig: 1.15, paper: false,
     en: 'The baseline: a clear liquid with a glassy surface that bends and reflects light. Medium thickness, medium swirl. Differences in liquidity are easiest to read here.',
     hu: 'A kiinduló anyag: tiszta folyadék üveges felülettel, amely megtöri és tükrözi a fényt. Közepesen sűrű, közepesen örvénylik. A likviditás különbségei itt olvashatók a legkönnyebben.' },
   { id: 'smoke', name: { en: 'Smoke', hu: 'Füst' }, prog: 'composite_smoke',
-    force: 215, curl: 48, turb: 2.0, velDiss: 0.08, dyeDiss: 0.45, relax: 0.2, puff: 1, fine: 0, edge: 0.18, bloomThr: 0.85, bloom: 0.07, bloomE: 0.1, vig: 1.15, paper: false,
+    force: 215, curl: 48, turb: 2.0, velDiss: 0.08, dyeDiss: 0.45, relax: 0.2, puff: 1, fine: 0, edge: 0.18, bands: 30, bloomThr: 0.85, bloom: 0.07, bloomE: 0.1, vig: 1.15, paper: false,
     en: 'Thin, fast and short-lived. It is released in puffs, travels quickly and thins out on the way, so it leaves dark space between plumes. More liquidity means denser puffs that reach further toward the centre. Drawn soft and translucent, with no surface.',
     hu: 'Híg, gyors és rövid életű. Pöffökben szabadul ki, gyorsan halad, és útközben megritkul, ezért a gomolyok között sötét tér marad. Több likviditás sűrűbb pöfföket ad, amelyek messzebb jutnak a közép felé. Puha és áttetsző, felület nélkül.' },
   { id: 'ink', name: { en: 'Ink', hu: 'Tinta' }, prog: 'composite_ink',
-    force: 150, curl: 34, turb: 1.3, velDiss: 0.1, dyeDiss: 0.03, relax: 0.3, puff: 0, fine: 1, edge: 0.18, bloomThr: 9, bloom: 0, bloomE: 0, vig: 0.5, paper: true,
+    force: 150, curl: 34, turb: 1.3, velDiss: 0.1, dyeDiss: 0.03, relax: 0.3, puff: 0, fine: 1, edge: 0.18, bands: 30, bloomThr: 9, bloom: 0, bloomE: 0, vig: 0.5, paper: true,
     en: 'Ink on paper. It enters as thin strands that the flow folds into marbled lines, and it fades slowly, so the picture keeps a trace of where the fluid has been. The background is light and the ink darkens it: the more liquidity, the darker the strand. Drawn flat, with no surface or highlights.',
-    hu: 'Tinta papíron. Vékony szálakban érkezik, amelyeket az áramlás márványos vonalakká hajtogat, és lassan halványul, ezért a kép megőrzi, merre járt a folyadék. A háttér világos, a tinta sötétíti: minél több a likviditás, annál sötétebb a szál. Lapos, felület és csillogás nélkül.' }
+    hu: 'Tinta papíron. Vékony szálakban érkezik, amelyeket az áramlás márványos vonalakká hajtogat, és lassan halványul, ezért a kép megőrzi, merre járt a folyadék. A háttér világos, a tinta sötétíti: minél több a likviditás, annál sötétebb a szál. Lapos, felület és csillogás nélkül.' },
+  { id: 'oil', name: { en: 'Oil', hu: 'Olaj' }, prog: 'composite_oil',
+    force: 185, curl: 6, turb: 0.35, velDiss: 0.7, dyeDiss: 0.06, relax: 0.4, puff: 0, fine: 0, edge: 0.18, bands: 9, bloomThr: 0.75, bloom: 0.1, bloomE: 0.1, vig: 1.15, paper: false,
+    en: 'Thick and sluggish. Small eddies die out, so it moves in broad, smooth bands and large slow swirls. Drawn as a dark, glossy layer with wide soft highlights, and a rainbow sheen where the layer is thin, the way an oil film looks on water. Liquidity still sets how much there is on each row and how hard it pushes.',
+    hu: 'Sűrű és lomha. A kis örvények elhalnak, ezért széles, sima sávokban és nagy, lassú örvényekben mozog. Sötét, fényes rétegként jelenik meg, széles, lágy csillogással, és ahol a réteg vékony, szivárványos fénye van, mint az olajfoltnak a vízen. Azt, hogy egy sorban mennyi van belőle és milyen erővel nyomul, továbbra is a likviditás adja.' }
 ];
 let matIdx = 0;
 try { matIdx = +localStorage.getItem('lc-mat') || 0; } catch (e) {}
@@ -1203,7 +1237,7 @@ function simulate(dt) {
   tex('uVelocity', vel.read, 0); tex('uSource', vel.read, 0); f1('uDissipation', MAT.velDiss); draw(vel.write); vel.swap();
   tex('uVelocity', vel.read, 0); tex('uSource', dye.read, 1); f1('uDissipation', MAT.dyeDiss); draw(dye.write); dye.swap();
 
-  use(P.dye); setCommon(); tex('uDye', dye.read, 0); f1('uDt', dt); f1('uBoost', bootT < 2 ? 3 : 0); f1('uRelax', MAT.relax); f1('uPuff', MAT.puff); f1('uFine', MAT.fine); f1('uEdge', MAT.edge);
+  use(P.dye); setCommon(); tex('uDye', dye.read, 0); f1('uDt', dt); f1('uBoost', bootT < 2 ? 3 : 0); f1('uRelax', MAT.relax); f1('uPuff', MAT.puff); f1('uFine', MAT.fine); f1('uEdge', MAT.edge); f1('uBands', MAT.bands);
   draw(dye.write); dye.swap();
 }
 
