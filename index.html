@@ -590,8 +590,11 @@ void main(){
   if(uCoh>0.0){ vec2 t2 = uDyeTexel*3.0;
     vec2 avg = 0.25*(texture(uDye,vUv+vec2(t2.x,0)).rg + texture(uDye,vUv-vec2(t2.x,0)).rg
                    + texture(uDye,vUv+vec2(0,t2.y)).rg + texture(uDye,vUv-vec2(0,t2.y)).rg);
-    b += uCoh*((avg.r-b) + 1.6*b*(1.0-b)*(b-0.33));      // above 0.33 it fills up, below it empties
-    a += uCoh*((avg.g-a) + 1.6*a*(1.0-a)*(a-0.33)); }
+    // The liquidity of the row decides where metal forms: it fills in where the inflow target is high and
+    // drains where it is low. The cohesion term then rounds the outline and absorbs small beads.
+    float hB = d.r*sB-0.28, hA = d.g*sA-0.28;
+    b += uCoh*((avg.r-b) + 1.6*b*(1.0-b)*(b-0.5)) + 5.0*uDt*(hB>0.0 ? hB*(1.0-b) : hB*b)*inB;
+    a += uCoh*((avg.g-a) + 1.6*a*(1.0-a)*(a-0.5)) + 5.0*uDt*(hA>0.0 ? hA*(1.0-a) : hA*a)*inA; }
   // Fluid pushed past its own front is annihilated in the spread and releases heat there.
   float kb = b*(1.0-exp(-16.0*uDt*(1.0-inB))), ka = a*(1.0-exp(-16.0*uDt*(1.0-inA)));
   b -= kb; a -= ka;
@@ -751,8 +754,8 @@ vec4 soft(vec2 uv, float r){ vec2 e = uTexel*r;
   return (texture(uDye,uv)*2.0 + texture(uDye,uv+vec2(e.x,0)) + texture(uDye,uv-vec2(e.x,0))
         + texture(uDye,uv+vec2(0,e.y)) + texture(uDye,uv-vec2(0,e.y)))/6.0; }
 float envf(vec2 r){                                    // dark floor, bright sky, one hard light strip, soft side lights
-  return 0.03 + 0.24*smoothstep(-0.15,0.5,r.y) + 0.95*smoothstep(0.52,0.58,r.y)*(1.0-smoothstep(0.76,0.82,r.y))
-       + 0.10*smoothstep(-0.25,-0.65,r.y) + 0.20*pow(0.5+0.5*sin(r.x*9.0+0.7),8.0); }
+  return 0.03 + 0.15*smoothstep(-0.15,0.5,r.y) + 0.95*smoothstep(0.58,0.62,r.y)*(1.0-smoothstep(0.68,0.72,r.y))
+       + 0.06*smoothstep(-0.25,-0.65,r.y) + 0.14*pow(0.5+0.5*sin(r.x*9.0+0.7),10.0); }
 float D(vec4 c){ return c.r+c.g; }
 void main(){
   vec2 uv = vUv; float ring = shockWarp(uv);
@@ -765,12 +768,12 @@ void main(){
   float dome = smoothstep(TH, 0.95, d);                             // 0 at the rim, 1 on the flat top
   vec2 q = uv*vec2(uAspect,1.0)*4.0;
   vec2 wob = vec2(noise(q+vec2(uTime*0.05,0.0)), noise(q+vec2(7.3,-uTime*0.04)))-0.5;   // the top is not perfectly flat
-  vec3 Nn = normalize(vec3(-vec2(dR-dL,dT-dB)*mix(6.5,0.5,dome) + wob*0.9*dome, 1.0));   // steep rim, near-flat top
+  vec3 Nn = normalize(vec3(-vec2(dR-dL,dT-dB)*mix(6.5,0.5,dome) + wob*0.6*dome, 1.0));   // steep rim, near-flat top
   vec3 V = vec3(0,0,1); vec3 Rf = reflect(-V,Nn);
   float m = envf(Rf.xy*1.6 + (uv-0.5)*vec2(0.55,0.75) + vec2(0.0,0.12));   // the flat top mirrors a slowly varying room
   float side = c.g/(d+1e-4);                                        // 0 = bids, 1 = asks
   vec3 tintc = mix(uBid[2],uAsk[2],side);
-  vec3 metal = m*mix(vec3(0.95), tintc*1.4+0.06, 0.38)*0.8;         // dark mirror inside, mostly neutral silver
+  vec3 metal = m*mix(vec3(0.95), tintc*1.4+0.06, 0.30)*0.85;        // dark mirror inside, mostly neutral silver
   metal += pow(1.0-Nn.z,2.0)*(0.60+0.35*tintc);                     // thin bright rim
   vec3 L1 = normalize(vec3(-0.5,0.6,0.62));
   metal += pow(max(dot(Nn,normalize(L1+V)),0.0),160.0)*1.6;
