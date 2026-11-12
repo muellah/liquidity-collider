@@ -515,7 +515,9 @@ void main(){
   vec2 v = texture(uVel,vUv).xy;
   if(uVisc>0.0){ vec2 avg = 0.25*(texture(uVel,vUv+vec2(uTexel.x,0)).xy + texture(uVel,vUv-vec2(uTexel.x,0)).xy
                                + texture(uVel,vUv+vec2(0,uTexel.y)).xy + texture(uVel,vUv-vec2(0,uTexel.y)).xy);
-    v = mix(v, avg, uVisc); }
+    vec2 far = 0.25*(texture(uVel,vUv+vec2(2.0*uTexel.x,0)).xy + texture(uVel,vUv-vec2(2.0*uTexel.x,0)).xy
+                   + texture(uVel,vUv+vec2(0,2.0*uTexel.y)).xy + texture(uVel,vUv-vec2(0,2.0*uTexel.y)).xy);
+    v = mix(v, mix(avg, far, 0.5), uVisc); }
   vec4 d = tierData(vUv.y); vec2 f = fronts(vUv,d);
   float lb = smoothstep(f.x+0.02, f.x-0.06, vUv.x);
   float la = smoothstep(f.y-0.02, f.y+0.06, vUv.x);
@@ -1123,7 +1125,7 @@ const MATERIALS = [
     en: 'Ink on paper. It enters as thin strands that the flow folds into marbled lines, and it fades slowly, so the picture keeps a trace of where the fluid has been. The background is light and the ink darkens it: the more liquidity, the darker the strand. Drawn flat, with no surface or highlights.',
     hu: 'Tinta papíron. Vékony szálakban érkezik, amelyeket az áramlás márványos vonalakká hajtogat, és lassan halványul, ezért a kép megőrzi, merre járt a folyadék. A háttér világos, a tinta sötétíti: minél több a likviditás, annál sötétebb a szál. Lapos, felület és csillogás nélkül.' },
   { id: 'oil', name: { en: 'Oil', hu: 'Olaj' }, prog: 'composite_oil',
-    force: 185, curl: 0, turb: 0.25, visc: 0.5, shear: 0.25, velDiss: 0.7, dyeDiss: 0.06, relax: 0.4, puff: 0, fine: 0, edge: 0.18, bands: 9, bloomThr: 0.75, bloom: 0.1, bloomE: 0.1, vig: 1.15, paper: false,
+    force: 235, curl: 0, turb: 0.12, visc: 0.85, shear: 0.12, velDiss: 1.0, dyeDiss: 0.06, relax: 0.4, puff: 0, fine: 0, edge: 0.18, bands: 9, bloomThr: 0.75, bloom: 0.1, bloomE: 0.1, vig: 1.15, paper: false,
     en: 'Thick and sluggish. Small eddies die out, so it moves in broad, smooth bands and large slow swirls. Drawn as a dark, glossy layer with wide soft highlights, and a rainbow sheen where the layer is thin, the way an oil film looks on water. Liquidity still sets how much there is on each row and how hard it pushes.',
     hu: 'Sűrű és lomha. A kis örvények elhalnak, ezért széles, sima sávokban és nagy, lassú örvényekben mozog. Sötét, fényes rétegként jelenik meg, széles, lágy csillogással, és ahol a réteg vékony, szivárványos fénye van, mint az olajfoltnak a vízen. Azt, hogy egy sorban mennyi van belőle és milyen erővel nyomul, továbbra is a likviditás adja.' }
 ];
