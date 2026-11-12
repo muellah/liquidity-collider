@@ -770,8 +770,8 @@ void main(){
   float m = envf(Rf.xy*1.6 + (uv-0.5)*vec2(0.55,0.75) + vec2(0.0,0.12));   // the flat top mirrors a slowly varying room
   float side = c.g/(d+1e-4);                                        // 0 = bids, 1 = asks
   vec3 tintc = mix(uBid[2],uAsk[2],side);
-  vec3 metal = m*mix(vec3(0.92), tintc*1.5+0.08, 0.5);
-  metal += pow(1.0-Nn.z,2.0)*(0.35+0.4*tintc);                      // rim catches the light
+  vec3 metal = m*mix(vec3(0.95), tintc*1.4+0.06, 0.38)*0.8;         // dark mirror inside, mostly neutral silver
+  metal += pow(1.0-Nn.z,2.0)*(0.60+0.35*tintc);                     // thin bright rim
   vec3 L1 = normalize(vec3(-0.5,0.6,0.62));
   metal += pow(max(dot(Nn,normalize(L1+V)),0.0),160.0)*1.6;
   vec3 col = metal*surf;
