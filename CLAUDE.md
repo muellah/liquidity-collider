@@ -7,3 +7,7 @@
   of your own check, and do not phrase it as an assignment for the user.
 - If a check could not be run (for example no real GPU or no live market feed in the environment), state
   that once as a limit on what was verified. Do not end reports with "you need to look at this".
+- Before saying that something cannot be done, explore first: list the available tools, skills and other
+  sessions, try clearly different approaches (another session on the user's machine, scripts, browser
+  automation), and run a small search that confirms the claim. State "not possible" only when that search
+  confirms it; if it does not, keep looking. Do not argue back before having done this.
