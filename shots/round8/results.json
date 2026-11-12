@@ -1,0 +1,63 @@
+{
+  "deployed": true,
+  "waited_s": 16,
+  "shots": [
+    {
+      "name": "mercury-desktop",
+      "attempt": 1,
+      "hud_60": {
+        "renderer": "ANGLE (Apple, ANGLE Metal Renderer: Apple M3, Unspecified Version)",
+        "hud_tr": "LIVE FEED\nWS-FEED.EXCHANGE.COINBASE.COM\nPING\n124 MS\nTHROUGHPUT\n160 TICKS/S\nTAPE\n$5K/S ▼\nRENDER\n60 FPS",
+        "matname": "Mercury",
+        "err_text": ""
+      },
+      "cover_60": {
+        "bidCover": 0.009964274816924329,
+        "askCover": 0.06411886357472199,
+        "w": 1229,
+        "h": 768,
+        "glError": 0,
+        "depth_text": "DEPTH RATIO 76.9% 23.1% REST THE POINTER ON ANYTHING FOR AN "
+      },
+      "at_70": {
+        "renderer": "ANGLE (Apple, ANGLE Metal Renderer: Apple M3, Unspecified Version)",
+        "hud_tr": "LIVE FEED\nWS-FEED.EXCHANGE.COINBASE.COM\nPING\n124 MS\nTHROUGHPUT\n442 TICKS/S\nTAPE\n$2K/S ▲\nRENDER\n60 FPS",
+        "matname": "Mercury",
+        "err_text": ""
+      },
+      "at_120": {
+        "renderer": "ANGLE (Apple, ANGLE Metal Renderer: Apple M3, Unspecified Version)",
+        "hud_tr": "LIVE FEED\nWS-FEED.EXCHANGE.COINBASE.COM\nPING\n122 MS\nTHROUGHPUT\n992 TICKS/S\nTAPE\n$10K/S ▲\nRENDER\n60 FPS",
+        "matname": "Mercury",
+        "err_text": ""
+      },
+      "cover_120": {
+        "bidCover": 0.06142570179007323,
+        "askCover": 0.029602530851640902,
+        "w": 1229,
+        "h": 768,
+        "glError": 0,
+        "depth_text": "DEPTH RATIO 76.2% 23.8% REST THE POINTER ON ANYTHING FOR AN "
+      },
+      "pacing_after_120s": {
+        "frames": 600,
+        "avg_ms": 16.67,
+        "p95_ms": 16.8,
+        "max_ms": 16.8,
+        "over_25ms": 0,
+        "over_20ms": 0
+      },
+      "console_errors": [],
+      "page_errors": []
+    },
+    {
+      "name": "mercury-phone",
+      "renderer": "ANGLE (Apple, ANGLE Metal Renderer: Apple M3, Unspecified Version)",
+      "hud_tr": "LIVE FEED\n128 MS\n467 TICKS/S\n$864/S ▲\n60 FPS",
+      "matname": "Mercury",
+      "err_text": "",
+      "console_errors": [],
+      "page_errors": []
+    }
+  ]
+}
