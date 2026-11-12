@@ -736,6 +736,39 @@ void main(){
   o = vec4(col,1.0);
 }`,
 
+  // Scene, mercury: the density is cut at a threshold into a sharp-edged surface that mirrors a simple studio environment.
+  composite_mercury: HEAD + COMMON + SCENE + `
+vec4 soft(vec2 uv, float r){ vec2 e = uTexel*r;
+  return (texture(uDye,uv)*2.0 + texture(uDye,uv+vec2(e.x,0)) + texture(uDye,uv-vec2(e.x,0))
+        + texture(uDye,uv+vec2(0,e.y)) + texture(uDye,uv-vec2(0,e.y)))/6.0; }
+float envf(vec2 r){                                    // dark floor, bright sky, one hard light strip, soft side lights
+  return 0.03 + 0.24*smoothstep(-0.15,0.5,r.y) + 0.95*smoothstep(0.52,0.58,r.y)*(1.0-smoothstep(0.76,0.82,r.y))
+       + 0.10*smoothstep(-0.25,-0.65,r.y) + 0.20*pow(0.5+0.5*sin(r.x*9.0+0.7),8.0); }
+void main(){
+  vec2 uv = vUv; float ring = shockWarp(uv);
+  vec2 e = uTexel*5.0;
+  vec4 c = soft(uv, 2.0); float d = c.r+c.g;
+  float dL=H(soft(uv-vec2(e.x,0),3.5)), dR=H(soft(uv+vec2(e.x,0),3.5)),
+        dB=H(soft(uv-vec2(0,e.y),3.5)), dT=H(soft(uv+vec2(0,e.y),3.5));
+  const float TH = 0.26;
+  float surf = smoothstep(TH, TH+0.035, d);                         // sharp edge
+  float dome = smoothstep(TH, TH+0.45, d);                          // 0 at the rim, 1 on the flat top
+  vec3 Nn = normalize(vec3(-vec2(dR-dL,dT-dB)*mix(7.0,1.0,dome), 1.0));   // steep at the rim: a rounded bead edge
+  vec3 V = vec3(0,0,1); vec3 Rf = reflect(-V,Nn);
+  float m = envf(Rf.xy*1.6 + vec2(0.0,0.12));
+  float side = c.g/(d+1e-4);                                        // 0 = bids, 1 = asks
+  vec3 tintc = mix(uBid[2],uAsk[2],side);
+  vec3 metal = m*mix(vec3(0.92), tintc*1.5+0.08, 0.5);
+  metal += pow(1.0-Nn.z,2.0)*(0.35+0.4*tintc);                      // rim catches the light
+  vec3 L1 = normalize(vec3(-0.5,0.6,0.62));
+  metal += pow(max(dot(Nn,normalize(L1+V)),0.0),160.0)*1.6;
+  vec3 col = metal*surf;
+  col += heatCol(c.b);
+  col += backdrop(uv.y)*(1.0-surf);
+  col += ring*vec3(1.0,0.93,0.85)*0.35;
+  o = vec4(col,1.0);
+}`,
+
   prefilter: HEAD + `uniform sampler2D uTex; uniform float uThreshold;
 void main(){ vec3 c = texture(uTex,vUv).rgb; float br = max(c.r,max(c.g,c.b));
   o = vec4(c*max(br-uThreshold,0.0)/(br+1e-4),1.0); }`,
@@ -914,7 +947,10 @@ const TXT = {
       thin: ' This tier is thin right now, so the row is dark.', thick: ' This tier is heavy right now, so the row glows.',
       bidTp: 'Buy orders in this price band. The more money rests here, the darker the ink on this row and the harder it flows toward the centre.',
       askTp: 'Sell orders in this price band. The more money rests here, the darker the ink on this row and the harder it flows toward the centre.',
-      thinP: ' This tier is thin right now, so the row is pale.', thickP: ' This tier is heavy right now, so the row is dark.'
+      thinP: ' This tier is thin right now, so the row is pale.', thickP: ' This tier is heavy right now, so the row is dark.',
+      bidTc: 'Buy orders in this price band. The more money rests here, the more of this row the metal covers and the harder it flows toward the centre.',
+      askTc: 'Sell orders in this price band. The more money rests here, the more of this row the metal covers and the harder it flows toward the centre.',
+      thinC: ' This tier is thin right now, so the row breaks into beads or stays empty.', thickC: ' This tier is heavy right now, so the row is a solid sheet.'
     },
     about: {
       eyebrow: 'Liquidity Collider', h: 'What is this?',
@@ -962,7 +998,10 @@ const TXT = {
       thin: ' Ez a sáv most vékony, ezért sötét a sor.', thick: ' Ez a sáv most vastag, ezért világít a sor.',
       bidTp: 'Vételi ajánlatok ebben az ársávban. Minél több pénz áll itt, annál sötétebb ebben a sorban a tinta, és annál erősebben áramlik középre.',
       askTp: 'Eladási ajánlatok ebben az ársávban. Minél több pénz áll itt, annál sötétebb ebben a sorban a tinta, és annál erősebben áramlik középre.',
-      thinP: ' Ez a sáv most vékony, ezért halvány a sor.', thickP: ' Ez a sáv most vastag, ezért sötét a sor.'
+      thinP: ' Ez a sáv most vékony, ezért halvány a sor.', thickP: ' Ez a sáv most vastag, ezért sötét a sor.',
+      bidTc: 'Vételi ajánlatok ebben az ársávban. Minél több pénz áll itt, annál többet fed le a fém ebből a sorból, és annál erősebben áramlik középre.',
+      askTc: 'Eladási ajánlatok ebben az ársávban. Minél több pénz áll itt, annál többet fed le a fém ebből a sorból, és annál erősebben áramlik középre.',
+      thinC: ' Ez a sáv most vékony, ezért a sor gyöngyökre szakad vagy üres marad.', thickC: ' Ez a sáv most vastag, ezért a sor összefüggő lemez.'
     },
     about: {
       eyebrow: 'Liquidity Collider', h: 'Mi ez?',
@@ -1049,12 +1088,12 @@ function inspect() {
       '<div class="kv"><span>' + I.sp + '</span><b>$' + S.spread.toFixed(2) + ' · ' + (bps < 0.1 ? bps.toFixed(4) : bps.toFixed(2)) + ' bp</b></div><p>' + I.gapT + '</p>';
   } else {
     const isBid = zone === 'bid', liq = isBid ? rawB[i] : rawA[i], rel = S.vref > 0 ? liq / S.vref : 1;
+    const VAR = MAT.paper ? 'p' : MAT.cover ? 'c' : '';   // wording variant: brightness, darkness on paper, or coverage
     const w = S.mid * 1e-4, p0 = isBid ? S.mid - (i + 1) * w : S.mid + i * w;
     html = '<h4><i style="background:' + (isBid ? 'var(--bid)' : 'var(--ask)') + '"></i>' + (isBid ? I.bid : I.ask) + ' · ' + i + '–' + (i + 1) + ' bp ' + (isBid ? I.below : I.above) + '</h4>' +
       '<div class="kv"><span>' + I.band + '</span><b>' + px(p0) + ' – ' + px(p0 + w) + '</b></div>' +
       '<div class="kv"><span>' + I.liq + '</span><b>' + fmtUSD(liq) + ' · ' + rel.toFixed(1) + I.avg + '</b></div>' +
-      '<p>' + (MAT.paper ? (isBid ? I.bidTp : I.askTp) : (isBid ? I.bidT : I.askT)) +
-      (rel < 0.4 ? (MAT.paper ? I.thinP : I.thin) : rel > 1.8 ? (MAT.paper ? I.thickP : I.thick) : '') + (i < 2 ? I.touchT : '') + '</p>';
+      '<p>' + I[(isBid ? 'bidT' : 'askT') + VAR] + (rel < 0.4 ? I['thin' + VAR.toUpperCase()] : rel > 1.8 ? I['thick' + VAR.toUpperCase()] : '') + (i < 2 ? I.touchT : '') + '</p>';
   }
   if (html !== tipHtml) { tipHtml = html; tipEl.innerHTML = html; }
   if (!tipAt) { tipAt = { x: hover.x, y: hover.y }; placeTip(hover.x, hover.y, null); }   // placed once, never follows the pointer
@@ -1158,7 +1197,11 @@ const MATERIALS = [
   { id: 'honey', name: { en: 'Honey', hu: 'Méz' }, prog: 'composite_honey',
     force: 300, curl: 0, turb: 0, visc: 1.0, shear: 0.6, velDiss: 1.6, dyeDiss: 0.05, relax: 0.25, puff: 0, fine: 0, edge: 0.18, bands: 5, bloomThr: 0.75, bloom: 0.09, bloomE: 0.1, vig: 1.15, paper: false,
     en: 'The thickest material. It creeps toward the centre in broad rounded tongues and folds slowly where it is pushed. Drawn as a dull, translucent gel with a soft inner light: thicker parts are a little brighter, the edges catch the light, and the highlights are wide and soft. More liquidity means a thicker, brighter tongue that pushes further.',
-    hu: 'A legsűrűbb anyag. Széles, lekerekített nyelvekben kúszik a közép felé, és lassan gyűrődik, ahol nyomás éri. Tompa, áttetsző zseléként jelenik meg, lágy belső fénnyel: a vastagabb részek kicsit fényesebbek, a szélek megkapják a fényt, a csillogás pedig széles és lágy. Több likviditás vastagabb, fényesebb nyelvet jelent, amely messzebbre nyomul.' }
+    hu: 'A legsűrűbb anyag. Széles, lekerekített nyelvekben kúszik a közép felé, és lassan gyűrődik, ahol nyomás éri. Tompa, áttetsző zseléként jelenik meg, lágy belső fénnyel: a vastagabb részek kicsit fényesebbek, a szélek megkapják a fényt, a csillogás pedig széles és lágy. Több likviditás vastagabb, fényesebb nyelvet jelent, amely messzebbre nyomul.' },
+  { id: 'mercury', name: { en: 'Mercury', hu: 'Higany' }, prog: 'composite_mercury', cover: true,
+    force: 170, curl: 10, turb: 0.6, visc: 0.2, shear: 1, velDiss: 0.3, dyeDiss: 0.1, relax: 0.4, puff: 0, fine: 0, edge: 0.18, bands: 14, bloomThr: 0.8, bloom: 0.1, bloomE: 0.1, vig: 1.15, paper: false,
+    en: 'Liquid metal. It has a sharp edge and a mirror surface: where there is enough of it the metal forms a solid sheet, and where there is little it breaks into separate beads. The palette only tints the reflections, so here the amount is read from how much of a row the metal covers, not from brightness. It looks like mercury but does not pull itself into round drops the way real mercury does.',
+    hu: 'Folyékony fém. Éles széle és tükröző felülete van: ahol elég van belőle, összefüggő lemezt alkot, ahol kevés, ott különálló gyöngyökre szakad. A paletta csak a tükröződést színezi, ezért itt a mennyiséget az mutatja, hogy a fém egy sorból mennyit fed le, nem a fényesség. Higanynak látszik, de nem húzódik magától kerek cseppekbe, ahogy a valódi higany.' }
 ];
 let matIdx = 0;
 try { matIdx = +localStorage.getItem('lc-mat') || 0; } catch (e) {}
