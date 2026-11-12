@@ -1,0 +1,58 @@
+{
+  "deployed": true,
+  "waited_s": 0,
+  "shots": [
+    {
+      "name": "mercury-60",
+      "query": "?mat=mercury",
+      "attempt": 1,
+      "at_s": 60,
+      "renderer": "ANGLE (Apple, ANGLE Metal Renderer: Apple M3, Unspecified Version)",
+      "hud_tr": "LIVE FEED\nWS-FEED.EXCHANGE.COINBASE.COM\nPING\n115 MS\nTHROUGHPUT\n93 TICKS/S\nTAPE\n$1K/S ▼\nRENDER\n60 FPS",
+      "matname": "Mercury",
+      "err_text": "",
+      "second": {
+        "name": "mercury-70",
+        "at_s": 70,
+        "renderer": "ANGLE (Apple, ANGLE Metal Renderer: Apple M3, Unspecified Version)",
+        "hud_tr": "LIVE FEED\nWS-FEED.EXCHANGE.COINBASE.COM\nPING\n115 MS\nTHROUGHPUT\n138 TICKS/S\nTAPE\n$3K/S ▼\nRENDER\n60 FPS",
+        "matname": "Mercury",
+        "err_text": ""
+      },
+      "pacing_after_70s": {
+        "frames": 601,
+        "avg_ms": 16.67,
+        "p95_ms": 16.7,
+        "max_ms": 16.8,
+        "over_25ms": 0,
+        "over_20ms": 0
+      },
+      "console_errors": [],
+      "page_errors": []
+    },
+    {
+      "name": "mercury-pal2",
+      "query": "?mat=mercury&pal=2",
+      "attempt": 1,
+      "at_s": 60,
+      "renderer": "ANGLE (Apple, ANGLE Metal Renderer: Apple M3, Unspecified Version)",
+      "hud_tr": "LIVE FEED\nWS-FEED.EXCHANGE.COINBASE.COM\nPING\n130 MS\nTHROUGHPUT\n356 TICKS/S\nTAPE\n$5K/S ▲\nRENDER\n60 FPS",
+      "matname": "Mercury",
+      "err_text": "",
+      "console_errors": [],
+      "page_errors": []
+    },
+    {
+      "name": "mercury-phone",
+      "query": "?mat=mercury",
+      "attempt": 1,
+      "at_s": 60,
+      "renderer": "ANGLE (Apple, ANGLE Metal Renderer: Apple M3, Unspecified Version)",
+      "hud_tr": "LIVE FEED\n122 MS\n488 TICKS/S\n$4K/S ▲\n60 FPS",
+      "matname": "Mercury",
+      "err_text": "",
+      "console_errors": [],
+      "page_errors": []
+    }
+  ]
+}
